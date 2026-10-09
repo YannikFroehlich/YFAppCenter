@@ -34,6 +34,18 @@ public sealed class LibraryTests
     }
 
     [TestMethod]
+    public void IsRunning_matches_processes_inside_install_directory_or_exact_executable()
+    {
+        var game = new LibraryEntry { Id = "Steam:1", Name = "Game", Target = "steam://rungameid/1", InstallDirectory = @"D:\Games\Game" };
+        var app = new LibraryEntry { Id = "manual:1", Name = "G HUB", Target = @"C:\x\copy.lnk", IconPath = @"C:\Program Files\LGHUB\lghub.exe", IsManual = true };
+
+        Assert.IsTrue(RunningDetector.IsRunning(game, [@"D:\GAMES\GAME\BIN\GAME.EXE"]));
+        Assert.IsFalse(RunningDetector.IsRunning(game, [@"D:\GAMES\GAME2\GAME2.EXE"]), "Nachbarordner mit gleichem Anfang zählt nicht.");
+        Assert.IsTrue(RunningDetector.IsRunning(app, [@"C:\PROGRAM FILES\LGHUB\LGHUB.EXE"]));
+        Assert.IsFalse(RunningDetector.IsRunning(app, [@"C:\PROGRAM FILES\LGHUB\LGHUB_AGENT.EXE"]), "Hintergrunddienste im selben Ordner zählen nicht.");
+    }
+
+    [TestMethod]
     public void CreateManual_copies_shortcut_and_takes_icon_from_its_target()
     {
         var notepad = Path.Combine(Environment.SystemDirectory, "notepad.exe");

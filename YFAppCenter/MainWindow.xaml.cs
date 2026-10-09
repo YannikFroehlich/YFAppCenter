@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
@@ -18,6 +18,9 @@ public partial class MainWindow : Window
     private List<LibraryEntry> visible = [];
     private string filter = "all";
     private LibraryEntry? featured;
+    private HashSet<string> runningIds = [];
+    private bool checkingRunning;
+    private readonly System.Windows.Threading.DispatcherTimer runningTimer = new() { Interval = TimeSpan.FromSeconds(3) };
     private static readonly Dictionary<string, ImageSource?> HeroImages = new(StringComparer.OrdinalIgnoreCase);
 
     public MainWindow()
@@ -31,6 +34,36 @@ public partial class MainWindow : Window
 
         Refresh();
         Loaded += async (_, _) => await RescanAsync();
+        runningTimer.Tick += async (_, _) => await UpdateRunningAsync();
+        runningTimer.Start();
+    }
+
+    /// <summary>Prüft alle paar Sekunden, welche Einträge gerade laufen; nur solange das Fenster sichtbar ist.</summary>
+    private async Task UpdateRunningAsync()
+    {
+        if (checkingRunning || WindowState == WindowState.Minimized)
+        {
+            return;
+        }
+
+        checkingRunning = true;
+        try
+        {
+            var ids = await RunningDetector.GetRunningIdsAsync(library);
+            if (!ids.SetEquals(runningIds))
+            {
+                runningIds = ids;
+                Refresh();
+            }
+        }
+        catch (Exception)
+        {
+            // Nur eine Statusanzeige; beim nächsten Durchlauf wird es erneut versucht.
+        }
+        finally
+        {
+            checkingRunning = false;
+        }
     }
 
     private async Task RescanAsync()
@@ -62,6 +95,11 @@ public partial class MainWindow : Window
     {
         var query = SearchBox.Text.Trim();
         var pool = library.Where(entry => ShowHiddenBox.IsChecked == true || !entry.Hidden).ToList();
+        foreach (var entry in library)
+        {
+            entry.IsRunning = runningIds.Contains(entry.Id);
+        }
+
         CountAll.Text = pool.Count.ToString();
         CountFavorites.Text = pool.Count(entry => entry.Favorite).ToString();
         CountRecent.Text = Math.Min(RecentCount, pool.Count(entry => entry.LastLaunched is not null)).ToString();
@@ -87,6 +125,7 @@ public partial class MainWindow : Window
             // Startseite ohne Suche: in Bereiche gegliedert, wie ein Startmenü.
             "all" when query.Length == 0 =>
             [
+                new("Läuft gerade", byName.Where(entry => entry.IsRunning).ToList()),
                 new("Zuletzt gestartet", recent.Take(HomeRecentCount).ToList()),
                 new("Favoriten", byName.Where(entry => entry.Favorite).ToList()),
                 new("Spiele", byName.Where(entry => entry.IsGame).ToList()),
@@ -139,7 +178,8 @@ public partial class MainWindow : Window
         var games = pool.Where(entry => entry.IsGame).ToList();
         var withArt = games.Where(entry => entry.HeroPath is not null).ToList();
         var daily = withArt.Count > 0 ? withArt : games;
-        featured = pool.Where(entry => entry.LastLaunched is not null).MaxBy(entry => entry.LastLaunched)
+        featured = pool.Where(entry => entry.IsRunning).MaxBy(entry => entry.LastLaunched)
+            ?? pool.Where(entry => entry.LastLaunched is not null).MaxBy(entry => entry.LastLaunched)
             ?? pool.FirstOrDefault(entry => entry.Favorite)
             ?? (daily.Count > 0 ? daily[DateTime.Today.DayOfYear % daily.Count] : null);
 
@@ -159,8 +199,8 @@ public partial class MainWindow : Window
         HeroLogo.Source = LoadImage(featured.LogoPath);
         HeroLogo.Visibility = HeroLogo.Source is null ? Visibility.Collapsed : Visibility.Visible;
         HeroTitle.Visibility = HeroLogo.Source is null ? Visibility.Visible : Visibility.Collapsed;
-        HeroLabel.Text = featured.LastLaunched is { } launched
-            ? $"WEITERMACHEN  ·  {Ago(launched)}"
+        HeroLabel.Text = featured.IsRunning ? "●  LÄUFT GERADE"
+            : featured.LastLaunched is { } launched ? $"WEITERMACHEN  ·  {Ago(launched)}"
             : featured.Favorite ? "AUS DEINEN FAVORITEN" : "TIPP DES TAGES";
         HeroPlayText.Text = featured.IsGame ? "Spielen" : "Öffnen";
         HeroFavoriteGlyph.Text = featured.Favorite ? "" : "";
@@ -260,7 +300,11 @@ public partial class MainWindow : Window
         SaveAndRefresh();
     }
 
-    private void OnActivated(object? sender, EventArgs e) => SearchBox.Focus();
+    private void OnActivated(object? sender, EventArgs e)
+    {
+        SearchBox.Focus();
+        _ = UpdateRunningAsync();
+    }
 
     private void OnSearchChanged(object sender, TextChangedEventArgs e) => Refresh();
 

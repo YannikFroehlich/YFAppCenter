@@ -11,6 +11,7 @@ using Windows.Management.Deployment;
 using Windows.Storage;
 using Windows.Storage.FileProperties;
 using YFTimeTracker.Core.Models;
+using YFTimeTracker.Core.Services;
 using YFTimeTracker.Windows.Processes;
 
 namespace YFAppCenter;
@@ -28,6 +29,8 @@ public sealed class LibraryEntry : INotifyPropertyChanged
     /// <summary>Breites Titelbild und Schriftzug aus dem Steam-Cache; für das Banner der Startseite.</summary>
     public string? HeroPath { get; set; }
     public string? LogoPath { get; set; }
+    /// <summary>Installationsordner erkannter Spiele; läuft eine .exe darin, gilt das Spiel als gestartet.</summary>
+    public string? InstallDirectory { get; set; }
     public bool IsGame { get; set; }
     public bool IsManual { get; init; }
     public bool Hidden { get; set; }
@@ -39,6 +42,7 @@ public sealed class LibraryEntry : INotifyPropertyChanged
     public string? CustomTarget { get; set; }
     public string? CustomIconPath { get; set; }
 
+    [JsonIgnore] public bool IsRunning { get; set; }
     [JsonIgnore] public string DisplayName => CustomName ?? Name;
     [JsonIgnore] public string LaunchTarget => CustomTarget ?? Target;
     [JsonIgnore] public string? IconSource => CustomIconPath ?? IconPath;
@@ -205,6 +209,56 @@ public static class Library
     }
 }
 
+public static class RunningDetector
+{
+    private static readonly WindowsProcessSnapshotProvider Processes = new(NullLogger<WindowsProcessSnapshotProvider>.Instance);
+
+    public static async Task<HashSet<string>> GetRunningIdsAsync(IReadOnlyList<LibraryEntry> entries)
+    {
+        var processes = await Task.Run(() => Processes.GetRunningProcessesAsync(CancellationToken.None));
+        var processKeys = processes.Select(process => process.ExecutablePathKey).ToList();
+        return entries.Where(entry => IsRunning(entry, processKeys)).Select(entry => entry.Id).ToHashSet();
+    }
+
+    // ponytail: eigene Einträge zählen nur bei genau derselben .exe. Programme, die über einen Starter
+    // laufen (etwa Discords Update.exe), werden nicht erkannt; bei Bedarf Startziel auf die echte .exe setzen.
+    internal static bool IsRunning(LibraryEntry entry, IReadOnlyList<string> processKeys)
+    {
+        if (Key(entry.InstallDirectory) is { } directory)
+        {
+            var prefix = directory + Path.DirectorySeparatorChar;
+            if (processKeys.Any(key => key.StartsWith(prefix, StringComparison.Ordinal)))
+            {
+                return true;
+            }
+        }
+
+        var executables = new[] { entry.CustomTarget, entry.Target, entry.CustomIconPath, entry.IconPath }
+            .Where(path => path?.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) == true)
+            .Select(Key)
+            .OfType<string>()
+            .ToHashSet();
+        return processKeys.Any(executables.Contains);
+    }
+
+    private static string? Key(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return null;
+        }
+
+        try
+        {
+            return ExecutablePathNormalizer.CreateKey(path);
+        }
+        catch (Exception exception) when (exception is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return null;
+        }
+    }
+}
+
 public static class Autostart
 {
     public const string MinimizedArgument = "--minimized";
@@ -295,6 +349,7 @@ public static class GameScanner
                         IconPath = xboxLogo ?? registryIcon ?? executable,
                         HeroPath = steamArt is null ? null : FindSteamImage(steamArt, game.ExternalGameId, "library_hero.jpg"),
                         LogoPath = steamArt is null ? null : FindSteamImage(steamArt, game.ExternalGameId, "logo.png"),
+                        InstallDirectory = game.InstallDirectory,
                         IsGame = true
                     });
                 }

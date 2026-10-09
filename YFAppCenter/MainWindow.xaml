@@ -224,6 +224,14 @@
                                 <DropShadowEffect BlurRadius="16" ShadowDepth="3" Opacity="0.45" />
                             </Image.Effect>
                         </Image>
+                        <Border x:Name="RunningBadge" CornerRadius="10" Padding="8,3,9,3" Margin="6"
+                                HorizontalAlignment="Left" VerticalAlignment="Top" Background="#B3000000"
+                                Visibility="Collapsed">
+                            <StackPanel Orientation="Horizontal">
+                                <Ellipse Width="7" Height="7" Fill="#6CCB5F" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                <TextBlock Text="Läuft" FontSize="11" FontWeight="SemiBold" Foreground="White" />
+                            </StackPanel>
+                        </Border>
                         <Border x:Name="PlayBadge" Width="36" Height="36" CornerRadius="18" Margin="8"
                                 HorizontalAlignment="Right" VerticalAlignment="Bottom" Opacity="0"
                                 Background="{DynamicResource AccentFillColorDefaultBrush}">
@@ -276,6 +284,9 @@
                 </DataTrigger>
                 <DataTrigger Binding="{Binding Favorite}" Value="True">
                     <Setter TargetName="Star" Property="Visibility" Value="Visible" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsRunning}" Value="True">
+                    <Setter TargetName="RunningBadge" Property="Visibility" Value="Visible" />
                 </DataTrigger>
                 <DataTrigger Binding="{Binding Hidden}" Value="True">
                     <Setter TargetName="Tile" Property="Opacity" Value="0.4" />
