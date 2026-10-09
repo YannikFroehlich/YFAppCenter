@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.22000.0</SupportedOSPlatformVersion>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationIcon>AppCenter.ico</ApplicationIcon>
+    <!-- ThemeMode (Fluent-Design) ist in WPF noch als experimentell markiert. -->
+    <NoWarn>$(NoWarn);WPF0001</NoWarn>
+    <Product>YF AppCenter</Product>
+    <Version>0.1.0</Version>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Spielerkennung kommt direkt aus YFTimeTracker, damit beide Programme dieselben Spiele finden. -->
+    <ProjectReference Include="..\..\YFTimeTracker\YFTimeTracker.Windows\YFTimeTracker.Windows.csproj" />
+    <Resource Include="AppCenter.ico" />
+    <InternalsVisibleTo Include="YFAppCenter.Tests" />
+  </ItemGroup>
+</Project>
