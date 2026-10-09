@@ -88,7 +88,17 @@ public partial class MainWindow : Window
         Refresh();
     }
 
-    public sealed record Section(string Title, IReadOnlyList<LibraryEntry> Items);
+    public sealed record Section(string Title, IReadOnlyList<LibraryEntry> Items)
+    {
+        // Name des Bereichs für Bedienungshilfen wie die Sprachausgabe.
+        public override string ToString() => Title;
+    }
+
+    public sealed record CategoryItem(string Name, int Count, bool IsSelected);
+
+    private const string CategoryPrefix = "cat:";
+
+    private string? SelectedCategory => filter.StartsWith(CategoryPrefix, StringComparison.Ordinal) ? filter[CategoryPrefix.Length..] : null;
 
     private void Refresh()
     {
@@ -105,6 +115,22 @@ public partial class MainWindow : Window
         CountGames.Text = pool.Count(entry => entry.IsGame).ToString();
         CountApps.Text = pool.Count(entry => !entry.IsGame).ToString();
 
+        var categories = pool
+            .Where(entry => entry.Category is not null)
+            .GroupBy(entry => entry.Category!)
+            .OrderBy(group => group.Key, StringComparer.CurrentCultureIgnoreCase)
+            .Select(group => new CategoryItem(group.Key, group.Count(), group.Key == SelectedCategory))
+            .ToList();
+        if (SelectedCategory is not null && !categories.Any(category => category.IsSelected))
+        {
+            // Die gewählte Kategorie ist leer geworden.
+            filter = "all";
+            HomeNav.IsChecked = true;
+        }
+
+        BuildCategoryNav(categories);
+        CategoryHeader.Visibility = categories.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+
         var matches = pool
             .Where(entry => filter switch
             {
@@ -112,6 +138,7 @@ public partial class MainWindow : Window
                 "apps" => !entry.IsGame,
                 "favorites" => entry.Favorite,
                 "recent" => entry.LastLaunched is not null,
+                _ when SelectedCategory is { } category => entry.Category == category,
                 _ => true
             })
             .Where(entry => entry.DisplayName.Contains(query, StringComparison.CurrentCultureIgnoreCase))
@@ -127,8 +154,10 @@ public partial class MainWindow : Window
                 new("Läuft gerade", byName.Where(entry => entry.IsRunning).ToList()),
                 new("Zuletzt gestartet", recent.Take(HomeRecentCount).ToList()),
                 new("Favoriten", byName.Where(entry => entry.Favorite).ToList()),
-                new("Spiele", byName.Where(entry => entry.IsGame).ToList()),
-                new("Programme", byName.Where(entry => !entry.IsGame).ToList())
+                .. categories.Select(category => new Section(category.Name, byName.Where(entry => entry.Category == category.Name).ToList())),
+                // Einträge mit Kategorie stehen schon in ihrem eigenen Bereich.
+                new("Spiele", byName.Where(entry => entry.IsGame && entry.Category is null).ToList()),
+                new("Programme", byName.Where(entry => !entry.IsGame && entry.Category is null).ToList())
             ],
             "recent" => [new("", recent.Take(RecentCount).ToList())],
             _ => [new("", byName.OrderByDescending(entry => entry.Favorite).ToList())]
@@ -145,6 +174,7 @@ public partial class MainWindow : Window
             "recent" => "Zuletzt gestartet",
             "games" => "Spiele",
             "apps" => "Programme",
+            _ when SelectedCategory is { } category => category,
             _ => DateTime.Now.Hour switch
             {
                 >= 5 and < 11 => "Guten Morgen",
@@ -262,7 +292,9 @@ public partial class MainWindow : Window
     {
         foreach (var path in paths.Where(File.Exists))
         {
-            library.Add(Library.CreateManual(path, isGame: filter == "games"));
+            var entry = Library.CreateManual(path, isGame: filter == "games");
+            entry.Category = SelectedCategory;
+            library.Add(entry);
         }
 
         SaveAndRefresh();
@@ -288,17 +320,86 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OnFilterChanged(object sender, RoutedEventArgs e)
+    private void OnNavChecked(object sender, RoutedEventArgs e)
     {
-        if (sender is RadioButton { Tag: string tag })
+        // Beim Neuaufbau der Kategorieliste wird der gewählte Eintrag erneut angehakt; dann nichts tun.
+        if (sender is not RadioButton { Tag: string tag } || tag == filter)
         {
-            filter = tag;
+            return;
         }
 
+        filter = tag;
         if (IsLoaded)
         {
             Refresh();
         }
+    }
+
+    private void OnShowHiddenChanged(object sender, RoutedEventArgs e)
+    {
+        if (IsLoaded)
+        {
+            Refresh();
+        }
+    }
+
+    /// <summary>
+    /// Direkt als Schaltflächen aufgebaut statt über ein ItemsControl, weil dessen Elemente für die
+    /// Sprachausgabe sonst leer erscheinen.
+    /// </summary>
+    private void BuildCategoryNav(List<CategoryItem> categories)
+    {
+        CategoryNav.Children.Clear();
+        foreach (var category in categories)
+        {
+            var rename = new MenuItem { Header = "Umbenennen …" };
+            rename.Click += (_, _) => RenameCategory(category);
+            var dissolve = new MenuItem { Header = "Kategorie auflösen" };
+            dissolve.Click += (_, _) => DissolveCategory(category);
+            var button = new RadioButton
+            {
+                Style = (Style)FindResource("NavItem"),
+                GroupName = "Nav",
+                Tag = CategoryPrefix + category.Name,
+                Content = category,
+                ContentTemplate = (DataTemplate)FindResource("CategoryNavContent"),
+                ContextMenu = new ContextMenu { Items = { rename, dissolve } }
+            };
+            System.Windows.Automation.AutomationProperties.SetName(button, category.Name);
+            button.IsChecked = category.IsSelected;
+            button.Checked += OnNavChecked;
+            CategoryNav.Children.Add(button);
+        }
+    }
+
+    private void RenameCategory(CategoryItem category)
+    {
+        if (Prompt("Kategorie umbenennen", category.Name) is not { Length: > 0 } name || name == category.Name)
+        {
+            return;
+        }
+
+        foreach (var entry in library.Where(entry => entry.Category == category.Name))
+        {
+            entry.Category = name;
+        }
+
+        if (SelectedCategory == category.Name)
+        {
+            filter = CategoryPrefix + name;
+        }
+
+        SaveAndRefresh();
+    }
+
+    private void DissolveCategory(CategoryItem category)
+    {
+        foreach (var entry in library.Where(entry => entry.Category == category.Name))
+        {
+            entry.Category = null;
+        }
+
+        SaveAndRefresh();
     }
 
     // Feuert auch beim Setzen des Startzustands; das schreibt nur den aktuellen Programmpfad neu.
@@ -411,6 +512,34 @@ public partial class MainWindow : Window
         var location = File.Exists(entry.LaunchTarget) ? entry.LaunchTarget : entry.IconSource;
         Add("Dateispeicherort öffnen", () => Process.Start("explorer.exe", $"/select,\"{location}\"")?.Dispose(),
             File.Exists(location));
+        var categoryMenu = new MenuItem { Header = "Kategorie" };
+        foreach (var name in library.Select(other => other.Category).OfType<string>().Distinct().Order(StringComparer.CurrentCultureIgnoreCase))
+        {
+            var item = new MenuItem { Header = name, IsCheckable = true, IsChecked = entry.Category == name };
+            item.Click += (_, _) =>
+            {
+                entry.Category = entry.Category == name ? null : name;
+                SaveAndRefresh();
+            };
+            categoryMenu.Items.Add(item);
+        }
+
+        if (categoryMenu.Items.Count > 0)
+        {
+            categoryMenu.Items.Add(new Separator());
+        }
+
+        var newCategory = new MenuItem { Header = "Neue Kategorie …" };
+        newCategory.Click += (_, _) =>
+        {
+            if (Prompt("Neue Kategorie", "") is { Length: > 0 } name)
+            {
+                entry.Category = name;
+                SaveAndRefresh();
+            }
+        };
+        categoryMenu.Items.Add(newCategory);
+        menu.Items.Add(categoryMenu);
         Add(entry.IsGame ? "Zu Programmen verschieben" : "Zu Spielen verschieben", () =>
         {
             entry.IsGame = !entry.IsGame;

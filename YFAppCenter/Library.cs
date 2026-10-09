@@ -35,6 +35,7 @@ public sealed class LibraryEntry : INotifyPropertyChanged
     public bool IsManual { get; init; }
     public bool Hidden { get; set; }
     public bool Favorite { get; set; }
+    public string? Category { get; set; }
     public DateTime? LastLaunched { get; set; }
 
     // Änderungen des Nutzers an erkannten Spielen; überleben jede neue Suche.
@@ -72,6 +73,9 @@ public sealed class LibraryEntry : INotifyPropertyChanged
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
+
+    // Name der Kachel für Bedienungshilfen wie die Sprachausgabe.
+    public override string ToString() => DisplayName;
 }
 
 public static class Library
@@ -131,6 +135,7 @@ public static class Library
                 entry.Hidden = old.Hidden;
                 entry.IsGame = old.IsGame;
                 entry.Favorite = old.Favorite;
+                entry.Category = old.Category;
                 entry.LastLaunched = old.LastLaunched;
             }
 

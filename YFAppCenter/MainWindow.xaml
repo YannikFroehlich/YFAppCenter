@@ -194,9 +194,18 @@
             </Style.Triggers>
         </Style>
 
+        <DataTemplate x:Key="CategoryNavContent">
+            <DockPanel>
+                <TextBlock Style="{StaticResource NavGlyph}" Text="&#xE8B7;" />
+                <TextBlock Text="{Binding Count}" Style="{StaticResource NavCount}" />
+                <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+            </DockPanel>
+        </DataTemplate>
+
         <DataTemplate x:Key="TileTemplate">
             <Button x:Name="Tile" Style="{StaticResource TileButton}" Click="OnTileClick"
-                    ContextMenuOpening="OnTileContextMenuOpening" ToolTip="{Binding DisplayName}">
+                    ContextMenuOpening="OnTileContextMenuOpening" ToolTip="{Binding DisplayName}"
+                    AutomationProperties.Name="{Binding DisplayName}">
                 <Button.ContextMenu>
                     <ContextMenu />
                 </Button.ContextMenu>
@@ -304,7 +313,7 @@
         </Grid.ColumnDefinitions>
 
         <!-- Seitenleiste -->
-        <DockPanel Margin="12,8,12,12" LastChildFill="False">
+        <DockPanel Margin="12,8,12,12">
             <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="10,8,0,24">
                 <Image Source="{StaticResource Logo}" Width="30" Height="30" />
                 <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
@@ -313,48 +322,10 @@
                 </StackPanel>
             </StackPanel>
 
-            <StackPanel DockPanel.Dock="Top">
-                <RadioButton Style="{StaticResource NavItem}" Tag="all" IsChecked="True" Checked="OnFilterChanged">
-                    <DockPanel>
-                        <TextBlock Style="{StaticResource NavGlyph}" Text="&#xE80F;" />
-                        <TextBlock x:Name="CountAll" Style="{StaticResource NavCount}" />
-                        <TextBlock Text="Startseite" />
-                    </DockPanel>
-                </RadioButton>
-                <RadioButton Style="{StaticResource NavItem}" Tag="favorites" Checked="OnFilterChanged">
-                    <DockPanel>
-                        <TextBlock Style="{StaticResource NavGlyph}" Text="&#xE734;" />
-                        <TextBlock x:Name="CountFavorites" Style="{StaticResource NavCount}" />
-                        <TextBlock Text="Favoriten" />
-                    </DockPanel>
-                </RadioButton>
-                <RadioButton Style="{StaticResource NavItem}" Tag="recent" Checked="OnFilterChanged">
-                    <DockPanel>
-                        <TextBlock Style="{StaticResource NavGlyph}" Text="&#xE81C;" />
-                        <TextBlock x:Name="CountRecent" Style="{StaticResource NavCount}" />
-                        <TextBlock Text="Zuletzt gestartet" />
-                    </DockPanel>
-                </RadioButton>
-                <Border Height="1" Margin="8,10" Background="{DynamicResource CardStrokeColorDefaultBrush}" />
-                <RadioButton Style="{StaticResource NavItem}" Tag="games" Checked="OnFilterChanged">
-                    <DockPanel>
-                        <TextBlock Style="{StaticResource NavGlyph}" Text="&#xE7FC;" />
-                        <TextBlock x:Name="CountGames" Style="{StaticResource NavCount}" />
-                        <TextBlock Text="Spiele" />
-                    </DockPanel>
-                </RadioButton>
-                <RadioButton Style="{StaticResource NavItem}" Tag="apps" Checked="OnFilterChanged">
-                    <DockPanel>
-                        <TextBlock Style="{StaticResource NavGlyph}" Text="&#xE71D;" />
-                        <TextBlock x:Name="CountApps" Style="{StaticResource NavCount}" />
-                        <TextBlock Text="Programme" />
-                    </DockPanel>
-                </RadioButton>
-            </StackPanel>
-
-            <StackPanel DockPanel.Dock="Bottom" Margin="10,0,4,0">
+            <StackPanel DockPanel.Dock="Bottom" Margin="10,12,4,0">
+                <StackPanel x:Name="UpdatePanel" Margin="0,0,0,12" Visibility="Collapsed" />
                 <CheckBox x:Name="ShowHiddenBox" Content="Ausgeblendete anzeigen" Margin="0,0,0,4"
-                          Checked="OnFilterChanged" Unchecked="OnFilterChanged" />
+                          Checked="OnShowHiddenChanged" Unchecked="OnShowHiddenChanged" />
                 <CheckBox x:Name="AutostartBox" Content="Mit Windows starten" Margin="0,0,0,12"
                           Checked="OnAutostartChanged" Unchecked="OnAutostartChanged"
                           ToolTip="Startet minimiert bei der Windows-Anmeldung" />
@@ -367,6 +338,52 @@
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,8,0" />
                 </DockPanel>
             </StackPanel>
+
+            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel>
+                    <RadioButton x:Name="HomeNav" Style="{StaticResource NavItem}" GroupName="Nav" Tag="all" IsChecked="True" Checked="OnNavChecked">
+                        <DockPanel>
+                            <TextBlock Style="{StaticResource NavGlyph}" Text="&#xE80F;" />
+                            <TextBlock x:Name="CountAll" Style="{StaticResource NavCount}" />
+                            <TextBlock Text="Startseite" />
+                        </DockPanel>
+                    </RadioButton>
+                    <RadioButton Style="{StaticResource NavItem}" GroupName="Nav" Tag="favorites" Checked="OnNavChecked">
+                        <DockPanel>
+                            <TextBlock Style="{StaticResource NavGlyph}" Text="&#xE734;" />
+                            <TextBlock x:Name="CountFavorites" Style="{StaticResource NavCount}" />
+                            <TextBlock Text="Favoriten" />
+                        </DockPanel>
+                    </RadioButton>
+                    <RadioButton Style="{StaticResource NavItem}" GroupName="Nav" Tag="recent" Checked="OnNavChecked">
+                        <DockPanel>
+                            <TextBlock Style="{StaticResource NavGlyph}" Text="&#xE81C;" />
+                            <TextBlock x:Name="CountRecent" Style="{StaticResource NavCount}" />
+                            <TextBlock Text="Zuletzt gestartet" />
+                        </DockPanel>
+                    </RadioButton>
+                    <Border Height="1" Margin="8,10" Background="{DynamicResource CardStrokeColorDefaultBrush}" />
+                    <RadioButton Style="{StaticResource NavItem}" GroupName="Nav" Tag="games" Checked="OnNavChecked">
+                        <DockPanel>
+                            <TextBlock Style="{StaticResource NavGlyph}" Text="&#xE7FC;" />
+                            <TextBlock x:Name="CountGames" Style="{StaticResource NavCount}" />
+                            <TextBlock Text="Spiele" />
+                        </DockPanel>
+                    </RadioButton>
+                    <RadioButton Style="{StaticResource NavItem}" GroupName="Nav" Tag="apps" Checked="OnNavChecked">
+                        <DockPanel>
+                            <TextBlock Style="{StaticResource NavGlyph}" Text="&#xE71D;" />
+                            <TextBlock x:Name="CountApps" Style="{StaticResource NavCount}" />
+                            <TextBlock Text="Programme" />
+                        </DockPanel>
+                    </RadioButton>
+
+                    <!-- Eigene Kategorien; entstehen über das Kontextmenü einer Kachel. -->
+                    <TextBlock x:Name="CategoryHeader" Text="Kategorien" FontSize="12" FontWeight="SemiBold" Margin="14,18,0,6"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" Visibility="Collapsed" />
+                    <StackPanel x:Name="CategoryNav" />
+                </StackPanel>
+            </ScrollViewer>
         </DockPanel>
 
         <!-- Inhalt -->
