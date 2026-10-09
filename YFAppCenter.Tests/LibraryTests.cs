@@ -12,7 +12,7 @@ public sealed class LibraryTests
         var existing = new List<LibraryEntry>
         {
             new() { Id = "manual:1", Name = "G HUB", Target = @"C:\lghub.exe", IsManual = true },
-            new() { Id = "Steam:1", Name = "Old", Target = "steam://rungameid/1", IsGame = true, Hidden = true, Favorite = true, LastLaunched = new DateTime(2026, 10, 1), CustomName = "Mein Spiel", CustomTarget = @"C:\x.exe" },
+            new() { Id = "Steam:1", Name = "Old", Target = "steam://rungameid/1", IsGame = true, Hidden = true, Favorite = true, LastLaunched = new DateTime(2026, 10, 1), CustomCoverPath = @"C:\cover.png", CustomName = "Mein Spiel", CustomTarget = @"C:\x.exe" },
             new() { Id = "Steam:2", Name = "Uninstalled", Target = "steam://rungameid/2", IsGame = true }
         };
         var detected = new List<LibraryEntry>
@@ -31,6 +31,7 @@ public sealed class LibraryTests
         Assert.IsTrue(game.Hidden);
         Assert.IsTrue(game.Favorite);
         Assert.AreEqual(new DateTime(2026, 10, 1), game.LastLaunched);
+        Assert.AreEqual(@"C:\cover.png", game.CustomCoverPath);
     }
 
     [TestMethod]
@@ -61,7 +62,7 @@ public sealed class LibraryTests
 
             Assert.IsTrue(File.Exists(entry.Target), "Die Kopie muss das Löschen des Originals überleben.");
             Assert.AreEqual(notepad, entry.IconPath, ignoreCase: true);
-            Library.DeleteImportedShortcut(entry.Target);
+            Library.DeleteImportedFile(entry.Target);
         }
         finally
         {

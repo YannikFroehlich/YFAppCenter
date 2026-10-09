@@ -21,7 +21,6 @@ public partial class MainWindow : Window
     private HashSet<string> runningIds = [];
     private bool checkingRunning;
     private readonly System.Windows.Threading.DispatcherTimer runningTimer = new() { Interval = TimeSpan.FromSeconds(3) };
-    private static readonly Dictionary<string, ImageSource?> HeroImages = new(StringComparer.OrdinalIgnoreCase);
 
     public MainWindow()
     {
@@ -195,8 +194,8 @@ public partial class MainWindow : Window
             _ = LoadIconAsync(featured);
         }
 
-        HeroImage.Source = LoadImage(featured.HeroPath);
-        HeroLogo.Source = LoadImage(featured.LogoPath);
+        HeroImage.Source = featured.Cover ?? ImageCache.Load(featured.HeroPath);
+        HeroLogo.Source = ImageCache.Load(featured.LogoPath);
         HeroLogo.Visibility = HeroLogo.Source is null ? Visibility.Collapsed : Visibility.Visible;
         HeroTitle.Visibility = HeroLogo.Source is null ? Visibility.Visible : Visibility.Collapsed;
         HeroLabel.Text = featured.IsRunning ? "●  LÄUFT GERADE"
@@ -215,37 +214,6 @@ public partial class MainWindow : Window
         { TotalDays: < 2 } => "gestern",
         var span => $"vor {(int)span.TotalDays} Tagen"
     };
-
-    private static ImageSource? LoadImage(string? path)
-    {
-        if (path is null || !File.Exists(path))
-        {
-            return null;
-        }
-
-        if (!HeroImages.TryGetValue(path, out var image))
-        {
-            try
-            {
-                var bitmap = new BitmapImage();
-                bitmap.BeginInit();
-                bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                bitmap.DecodePixelWidth = 1600;
-                bitmap.UriSource = new Uri(path);
-                bitmap.EndInit();
-                bitmap.Freeze();
-                image = bitmap;
-            }
-            catch (Exception exception) when (exception is IOException or NotSupportedException or UriFormatException)
-            {
-                image = null;
-            }
-
-            HeroImages[path] = image;
-        }
-
-        return image;
-    }
 
     private void OnHeroSizeChanged(object sender, SizeChangedEventArgs e) => HeroClip.Rect = new Rect(e.NewSize);
 
@@ -429,6 +397,17 @@ public partial class MainWindow : Window
             }
         });
         Add("Startziel ändern …", () => ChangeTarget(entry));
+        Add("Cover-Bild festlegen …", () => ChangeCover(entry));
+        if (entry.CustomCoverPath is not null)
+        {
+            Add("Cover-Bild entfernen", () =>
+            {
+                Library.DeleteImportedFile(entry.CustomCoverPath);
+                entry.CustomCoverPath = null;
+                SaveAndRefresh();
+            });
+        }
+
         var location = File.Exists(entry.LaunchTarget) ? entry.LaunchTarget : entry.IconSource;
         Add("Dateispeicherort öffnen", () => Process.Start("explorer.exe", $"/select,\"{location}\"")?.Dispose(),
             File.Exists(location));
@@ -443,8 +422,9 @@ public partial class MainWindow : Window
             Add("Entfernen", () =>
             {
                 library.Remove(entry);
-                Library.DeleteImportedShortcut(entry.Target);
-                Library.DeleteImportedShortcut(entry.CustomTarget);
+                Library.DeleteImportedFile(entry.Target);
+                Library.DeleteImportedFile(entry.CustomTarget);
+                Library.DeleteImportedFile(entry.CustomCoverPath);
                 SaveAndRefresh();
             });
         }
@@ -457,6 +437,29 @@ public partial class MainWindow : Window
                 SaveAndRefresh();
             });
         }
+    }
+
+    private void ChangeCover(LibraryEntry entry)
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = $"Cover-Bild für „{entry.DisplayName}“",
+            Filter = "Bilder|*.png;*.jpg;*.jpeg;*.webp;*.bmp;*.gif"
+        };
+        if (dialog.ShowDialog(this) != true)
+        {
+            return;
+        }
+
+        if (ImageCache.Load(dialog.FileName) is null)
+        {
+            MessageBox.Show(this, "Dieses Bild kann nicht geöffnet werden.", Title, MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        Library.DeleteImportedFile(entry.CustomCoverPath);
+        entry.CustomCoverPath = Library.ImportCover(dialog.FileName);
+        SaveAndRefresh();
     }
 
     private void ChangeTarget(LibraryEntry entry)
@@ -477,7 +480,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        Library.DeleteImportedShortcut(entry.CustomTarget);
+        Library.DeleteImportedFile(entry.CustomTarget);
         (entry.CustomTarget, entry.CustomIconPath) = Library.ImportFile(dialog.FileName);
         entry.Icon = null;
         SaveAndRefresh();

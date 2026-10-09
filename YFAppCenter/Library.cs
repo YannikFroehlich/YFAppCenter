@@ -41,11 +41,13 @@ public sealed class LibraryEntry : INotifyPropertyChanged
     public string? CustomName { get; set; }
     public string? CustomTarget { get; set; }
     public string? CustomIconPath { get; set; }
+    public string? CustomCoverPath { get; set; }
 
     [JsonIgnore] public bool IsRunning { get; set; }
     [JsonIgnore] public string DisplayName => CustomName ?? Name;
     [JsonIgnore] public string LaunchTarget => CustomTarget ?? Target;
     [JsonIgnore] public string? IconSource => CustomIconPath ?? IconPath;
+    [JsonIgnore] public ImageSource? Cover => ImageCache.Load(CustomCoverPath);
 
     [JsonIgnore]
     public string Subtitle => IsManual ? (IsGame ? "Spiel" : "Programm") : Id.Split(':')[0] switch
@@ -79,6 +81,7 @@ public static class Library
 
     private static readonly string LibraryFile = Path.Combine(DataFolder, "library.json");
     private static readonly string ShortcutFolder = Path.Combine(DataFolder, "Shortcuts");
+    private static readonly string CoverFolder = Path.Combine(DataFolder, "Covers");
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
     public static List<LibraryEntry> Load()
@@ -124,6 +127,7 @@ public static class Library
                 entry.CustomName = old.CustomName;
                 entry.CustomTarget = old.CustomTarget;
                 entry.CustomIconPath = old.CustomIconPath;
+                entry.CustomCoverPath = old.CustomCoverPath;
                 entry.Hidden = old.Hidden;
                 entry.IsGame = old.IsGame;
                 entry.Favorite = old.Favorite;
@@ -175,9 +179,21 @@ public static class Library
         };
     }
 
-    public static void DeleteImportedShortcut(string? path)
+    /// <summary>Kopiert ein Cover-Bild in den Datenordner, damit das Original verschoben oder gelöscht werden darf.</summary>
+    public static string ImportCover(string path)
     {
-        if (path is not null && path.StartsWith(ShortcutFolder, StringComparison.OrdinalIgnoreCase))
+        Directory.CreateDirectory(CoverFolder);
+        var copy = Path.Combine(CoverFolder, $"{Guid.NewGuid():N}{Path.GetExtension(path).ToLowerInvariant()}");
+        File.Copy(path, copy);
+        return copy;
+    }
+
+    /// <summary>Löscht nur Kopien, die das AppCenter selbst angelegt hat.</summary>
+    public static void DeleteImportedFile(string? path)
+    {
+        if (path is not null
+            && (path.StartsWith(ShortcutFolder, StringComparison.OrdinalIgnoreCase)
+                || path.StartsWith(CoverFolder, StringComparison.OrdinalIgnoreCase)))
         {
             File.Delete(path);
         }
@@ -497,6 +513,43 @@ public static class GameScanner
         {
             return (null, null);
         }
+    }
+}
+
+public static class ImageCache
+{
+    // Nur vom UI-Thread benutzt.
+    private static readonly Dictionary<string, ImageSource?> Images = new(StringComparer.OrdinalIgnoreCase);
+
+    public static ImageSource? Load(string? path)
+    {
+        if (path is null || !File.Exists(path))
+        {
+            return null;
+        }
+
+        if (!Images.TryGetValue(path, out var image))
+        {
+            try
+            {
+                var bitmap = new BitmapImage();
+                bitmap.BeginInit();
+                bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                bitmap.DecodePixelWidth = 1600;
+                bitmap.UriSource = new Uri(path);
+                bitmap.EndInit();
+                bitmap.Freeze();
+                image = bitmap;
+            }
+            catch (Exception exception) when (exception is IOException or NotSupportedException or UriFormatException)
+            {
+                image = null;
+            }
+
+            Images[path] = image;
+        }
+
+        return image;
     }
 }
 
