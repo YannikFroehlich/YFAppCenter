@@ -39,6 +39,7 @@ public partial class MainWindow : Window
         Activated += (_, _) => padTimer.Start();
         Deactivated += (_, _) => padTimer.Stop();
         LogoPanel.ToolTip = $"Version {AppUpdater.CurrentVersion}";
+        AppUpdater.SyncInstalledVersion();
         Loaded += async (_, _) => await CheckForUpdateAsync();
         updateTimer.Tick += async (_, _) => await CheckForUpdateAsync();
         updateTimer.Start();

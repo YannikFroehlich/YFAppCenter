@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Baut YF AppCenter, packt es mit Velopack und veröffentlicht es als GitHub-Release.
     Installierte Versionen finden das Release automatisch und aktualisieren sich.
@@ -59,6 +59,18 @@ Invoke-Checked vpk @(
     '--framework', 'net10.0-x64-desktop',
     '--shortcuts', 'StartMenuRoot',
     '--outputDir', $outputDir)
+
+# Eigener Installer (Ordnerauswahl, Verknüpfungen, Deinstallation) statt Velopacks Ein-Klick-Setup.
+# Er enthält das Portable-Paket; entpackt ist das eine normale Velopack-Installation mit Updates.
+$portable = Join-Path $outputDir 'YFAppCenter.App-win-Portable.zip'
+Invoke-Checked dotnet @(
+    'build', (Join-Path $root 'YFAppCenter.Setup'),
+    '-c', 'Release', "-p:Version=$Version", "-p:AppPackage=$portable")
+Copy-Item (Join-Path $root 'YFAppCenter.Setup\bin\Release\net48\YFAppCenter-Setup.exe') (Join-Path $outputDir 'YFAppCenter-Setup.exe') -Force
+Remove-Item (Join-Path $outputDir 'YFAppCenter.App-win-Setup.exe') -ErrorAction SilentlyContinue
+$assetsFile = Join-Path $outputDir 'assets.win.json'
+$assetsJson = [IO.File]::ReadAllText($assetsFile).Replace('"YFAppCenter.App-win-Setup.exe"', '"YFAppCenter-Setup.exe"')
+[IO.File]::WriteAllText($assetsFile, $assetsJson, (New-Object Text.UTF8Encoding $false))
 
 if ($NoUpload) {
     Write-Host "Fertig. Setup und Pakete liegen in $outputDir"

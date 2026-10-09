@@ -10,7 +10,7 @@
     <!-- ThemeMode (Fluent-Design) ist in WPF noch als experimentell markiert. -->
     <NoWarn>$(NoWarn);WPF0001</NoWarn>
     <Product>YF AppCenter</Product>
-    <Version>0.2.0</Version>
+    <Version>0.3.0</Version>
     <StartupObject>YFAppCenter.Program</StartupObject>
   </PropertyGroup>
   <ItemGroup>

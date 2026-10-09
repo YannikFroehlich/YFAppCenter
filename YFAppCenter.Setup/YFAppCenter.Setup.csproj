@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Eigener Installer. Bewusst .NET Framework 4.8: ist in jedem Windows 10/11 enthalten, der Installer
+    startet also auch dort, wo die .NET-10-Laufzeit der App noch fehlt (die lädt er dann nach).
+    Das App-Paket (Velopack-Portable-ZIP) wird beim Release über -p:AppPackage=... eingebettet.
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <Prefer32Bit>false</Prefer32Bit>
+    <AssemblyName>YFAppCenter-Setup</AssemblyName>
+    <RootNamespace>YFAppCenter.Setup</RootNamespace>
+    <ApplicationIcon>..\YFAppCenter\AppCenter.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Product>YF AppCenter Setup</Product>
+    <Version>0.3.0</Version>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="System.IO.Compression.FileSystem" />
+    <Reference Include="System.Net.Http" />
+    <EmbeddedResource Include="$(AppPackage)" LogicalName="app.zip" Condition="'$(AppPackage)' != ''" />
+  </ItemGroup>
+</Project>

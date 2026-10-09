@@ -1,4 +1,5 @@
-﻿using Velopack;
+﻿using System.IO;
+using Velopack;
 using Velopack.Sources;
 
 namespace YFAppCenter;
@@ -49,6 +50,27 @@ public static class AppUpdater
         if (Manager?.UpdatePendingRestart is { } pending)
         {
             Manager.ApplyUpdatesAndRestart(pending);
+        }
+    }
+
+    /// <summary>
+    /// Hält die Versionsnummer unter „Apps“ aktuell, wenn die App über den eigenen Installer eingerichtet wurde
+    /// und sich seitdem per Update erneuert hat.
+    /// </summary>
+    public static void SyncInstalledVersion()
+    {
+        if (Manager?.CurrentVersion is not { } version)
+        {
+            return;
+        }
+
+        using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Uninstall\YFAppCenter", writable: true);
+        // Installationsordner = Elternordner von "current", in dem die App läuft.
+        var installRoot = Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(AppContext.BaseDirectory));
+        if (key?.GetValue("InstallLocation") is string location
+            && string.Equals(Path.TrimEndingDirectorySeparator(location), installRoot, StringComparison.OrdinalIgnoreCase))
+        {
+            key.SetValue("DisplayVersion", version.ToNormalizedString());
         }
     }
 
