@@ -94,6 +94,7 @@
 
         <!-- Navigation links, im Stil der Windows-11-NavigationView. -->
         <Style x:Key="NavItem" TargetType="RadioButton">
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
             <Setter Property="Margin" Value="0,2" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
@@ -101,7 +102,7 @@
                 <Setter.Value>
                     <ControlTemplate TargetType="RadioButton">
                         <Grid>
-                            <Border x:Name="Bg" CornerRadius="6" Background="Transparent" Padding="14,10">
+                            <Border x:Name="Bg" CornerRadius="6" Background="Transparent" Padding="13,9" BorderThickness="1" BorderBrush="Transparent">
                                 <ContentPresenter />
                             </Border>
                             <Border x:Name="Pill" Width="3" Height="18" CornerRadius="1.5" HorizontalAlignment="Left"
@@ -114,6 +115,9 @@
                             <Trigger Property="IsChecked" Value="True">
                                 <Setter TargetName="Bg" Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
                                 <Setter TargetName="Pill" Property="Visibility" Value="Visible" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Bg" Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -269,6 +273,10 @@
                 </Grid>
             </Button>
             <DataTemplate.Triggers>
+                <!-- Play-Knopf auch bei Fokus durch Tastatur oder Controller zeigen. -->
+                <Trigger SourceName="Tile" Property="IsKeyboardFocused" Value="True">
+                    <Setter TargetName="PlayBadge" Property="Opacity" Value="1" />
+                </Trigger>
                 <Trigger SourceName="Tile" Property="IsMouseOver" Value="True">
                     <Trigger.EnterActions>
                         <BeginStoryboard>
@@ -527,6 +535,26 @@
                     <TextBlock x:Name="EmptyText" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" MaxWidth="380"
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                 </StackPanel>
+
+                <!-- Tastenhilfe, sobald ein Controller angeschlossen ist. -->
+                <Border x:Name="PadHints" Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,18"
+                        CornerRadius="18" Padding="18,8" Background="#E6202020" Visibility="Collapsed" IsHitTestVisible="False">
+                    <Border.Effect>
+                        <DropShadowEffect BlurRadius="18" ShadowDepth="2" Opacity="0.4" />
+                    </Border.Effect>
+                    <StackPanel Orientation="Horizontal" TextElement.Foreground="White" TextElement.FontSize="12">
+                        <TextBlock Text="A" FontWeight="Bold" Foreground="#6CCB5F" Margin="0,0,6,0" />
+                        <TextBlock Text="Starten" Margin="0,0,18,0" />
+                        <TextBlock Text="B" FontWeight="Bold" Foreground="#FF6B6B" Margin="0,0,6,0" />
+                        <TextBlock Text="Zurück" Margin="0,0,18,0" />
+                        <TextBlock Text="X" FontWeight="Bold" Foreground="#4CC2FF" Margin="0,0,6,0" />
+                        <TextBlock Text="Menü" Margin="0,0,18,0" />
+                        <TextBlock Text="Y" FontWeight="Bold" Foreground="#FFC83D" Margin="0,0,6,0" />
+                        <TextBlock Text="Favorit" Margin="0,0,18,0" />
+                        <TextBlock Text="LB / RB" FontWeight="Bold" Margin="0,0,6,0" />
+                        <TextBlock Text="Bereich wechseln" />
+                    </StackPanel>
+                </Border>
 
                 <Grid x:Name="DropOverlay" Grid.RowSpan="2" IsHitTestVisible="False" Visibility="Collapsed"
                       Background="{DynamicResource SolidBackgroundFillColorBaseBrush}">
