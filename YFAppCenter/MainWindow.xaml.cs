@@ -38,7 +38,32 @@ public partial class MainWindow : Window
         padTimer.Tick += (_, _) => PollGamepad();
         Activated += (_, _) => padTimer.Start();
         Deactivated += (_, _) => padTimer.Stop();
+        LogoPanel.ToolTip = $"Version {AppUpdater.CurrentVersion}";
+        Loaded += async (_, _) => await CheckForUpdateAsync();
+        updateTimer.Tick += async (_, _) => await CheckForUpdateAsync();
+        updateTimer.Start();
     }
+
+    // Läuft die App per Autostart tagelang, soll sie trotzdem neue Versionen finden.
+    private readonly System.Windows.Threading.DispatcherTimer updateTimer = new() { Interval = TimeSpan.FromHours(6) };
+
+    private async Task CheckForUpdateAsync()
+    {
+        try
+        {
+            if (await AppUpdater.DownloadUpdateAsync() is { } version)
+            {
+                UpdateText.Text = $"Version {version} ist bereit";
+                UpdatePanel.Visibility = Visibility.Visible;
+            }
+        }
+        catch (Exception)
+        {
+            // Kein Internet oder GitHub nicht erreichbar: beim nächsten Mal erneut versuchen.
+        }
+    }
+
+    private void OnUpdateRestartClick(object sender, RoutedEventArgs e) => AppUpdater.ApplyAndRestart();
 
     // Controller: nur abfragen, solange das Fenster im Vordergrund ist. Ohne Controller seltener,
     // weil XInput leere Anschlüsse vergleichsweise langsam abfragt.

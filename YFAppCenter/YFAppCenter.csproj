@@ -10,11 +10,13 @@
     <!-- ThemeMode (Fluent-Design) ist in WPF noch als experimentell markiert. -->
     <NoWarn>$(NoWarn);WPF0001</NoWarn>
     <Product>YF AppCenter</Product>
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
+    <StartupObject>YFAppCenter.Program</StartupObject>
   </PropertyGroup>
   <ItemGroup>
     <!-- Spielerkennung kommt direkt aus YFTimeTracker, damit beide Programme dieselben Spiele finden. -->
     <ProjectReference Include="..\..\YFTimeTracker\YFTimeTracker.Windows\YFTimeTracker.Windows.csproj" />
+    <PackageReference Include="Velopack" Version="1.2.0" />
     <Resource Include="AppCenter.ico" />
     <InternalsVisibleTo Include="YFAppCenter.Tests" />
   </ItemGroup>

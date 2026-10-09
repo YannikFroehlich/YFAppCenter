@@ -322,7 +322,7 @@
 
         <!-- Seitenleiste -->
         <DockPanel Margin="12,8,12,12">
-            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="10,8,0,24">
+            <StackPanel x:Name="LogoPanel" DockPanel.Dock="Top" Orientation="Horizontal" Margin="10,8,0,24">
                 <Image Source="{StaticResource Logo}" Width="30" Height="30" />
                 <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
                     <TextBlock Text="YF AppCenter" FontSize="16" FontWeight="SemiBold" />
@@ -331,7 +331,22 @@
             </StackPanel>
 
             <StackPanel DockPanel.Dock="Bottom" Margin="10,12,4,0">
-                <StackPanel x:Name="UpdatePanel" Margin="0,0,0,12" Visibility="Collapsed" />
+                <!-- Erscheint, sobald eine neue Version heruntergeladen ist. -->
+                <Border x:Name="UpdatePanel" Margin="-6,0,0,14" Padding="12,10" CornerRadius="8" Visibility="Collapsed"
+                        Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{DynamicResource AccentFillColorDefaultBrush}" BorderThickness="1">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Style="{StaticResource Glyph}" Text="&#xE896;" Margin="0,0,8,0"
+                                       Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+                            <TextBlock x:Name="UpdateText" FontWeight="SemiBold" />
+                        </StackPanel>
+                        <TextBlock Text="Wird sonst beim Schließen installiert." FontSize="12" Margin="0,4,0,8" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                        <Button Style="{DynamicResource AccentButtonStyle}" Content="Jetzt neu starten" HorizontalAlignment="Stretch"
+                                Click="OnUpdateRestartClick" />
+                    </StackPanel>
+                </Border>
                 <CheckBox x:Name="ShowHiddenBox" Content="Ausgeblendete anzeigen" Margin="0,0,0,4"
                           Checked="OnShowHiddenChanged" Unchecked="OnShowHiddenChanged" />
                 <CheckBox x:Name="AutostartBox" Content="Mit Windows starten" Margin="0,0,0,12"
