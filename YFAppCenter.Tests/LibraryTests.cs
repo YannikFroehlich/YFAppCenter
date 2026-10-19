@@ -36,6 +36,23 @@ public sealed class LibraryTests
     }
 
     [TestMethod]
+    public void Merge_keeps_games_on_a_missing_drive()
+    {
+        var usedLetters = DriveInfo.GetDrives().Select(drive => char.ToUpperInvariant(drive.Name[0])).ToHashSet();
+        var missingDrive = "ZYXWVUTSRQPONMLKJIHGFED".First(letter => !usedLetters.Contains(letter));
+        var existing = new List<LibraryEntry>
+        {
+            new() { Id = "Steam:1", Name = "Offline", Target = "steam://rungameid/1", IsGame = true, Favorite = true, InstallDirectory = $@"{missingDrive}:\Steam\common\Offline" },
+            new() { Id = "Steam:2", Name = "Uninstalled", Target = "steam://rungameid/2", IsGame = true, InstallDirectory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")) }
+        };
+
+        var merged = Library.Merge(existing, []);
+
+        Assert.AreEqual("Steam:1", merged.Single().Id);
+        Assert.IsTrue(merged.Single().Favorite);
+    }
+
+    [TestMethod]
     public void IsRunning_matches_processes_inside_install_directory_or_exact_executable()
     {
         var game = new LibraryEntry { Id = "Steam:1", Name = "Game", Target = "steam://rungameid/1", InstallDirectory = @"D:\Games\Game" };

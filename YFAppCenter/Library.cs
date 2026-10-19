@@ -118,6 +118,7 @@ public static class Library
     /// <summary>
     /// Ersetzt die erkannten Spiele durch das neue Suchergebnis. Eigene Einträge bleiben, Umbenennungen,
     /// Ausblenden usw. werden auf die neu erkannten Einträge übertragen, deinstallierte Spiele fallen weg.
+    /// Spiele auf einem gerade fehlenden Laufwerk (USB-Platte, Netzlaufwerk) bleiben samt Einstellungen erhalten.
     /// </summary>
     public static List<LibraryEntry> Merge(IEnumerable<LibraryEntry> existing, IEnumerable<LibraryEntry> detected)
     {
@@ -126,7 +127,7 @@ public static class Library
         var merged = previous.Where(entry => entry.IsManual).ToList();
         foreach (var entry in detected)
         {
-            if (byId.TryGetValue(entry.Id, out var old))
+            if (byId.Remove(entry.Id, out var old))
             {
                 entry.CustomName = old.CustomName;
                 entry.CustomTarget = old.CustomTarget;
@@ -142,8 +143,13 @@ public static class Library
             merged.Add(entry);
         }
 
+        // Übrig sind nicht mehr gefundene Spiele.
+        merged.AddRange(byId.Values.Where(entry => IsOnMissingDrive(entry.InstallDirectory)));
         return merged;
     }
+
+    private static bool IsOnMissingDrive(string? directory) =>
+        Path.GetPathRoot(directory) is { Length: > 0 } root && !Directory.Exists(root);
 
     /// <summary>
     /// Bereitet eine Datei als Startziel vor. Verknüpfungen werden kopiert, damit die Originale
