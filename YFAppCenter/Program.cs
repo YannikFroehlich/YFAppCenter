@@ -33,21 +33,7 @@ public static class Program
         app.Run();
     }
 
-    private static void ShowMainWindow()
-    {
-        if (Application.Current.MainWindow is not { } window)
-        {
-            return;
-        }
-
-        if (window.WindowState == WindowState.Minimized)
-        {
-            // Stellt auch ein vorher maximiertes Fenster wieder maximiert her.
-            SystemCommands.RestoreWindow(window);
-        }
-
-        window.Activate();
-    }
+    private static void ShowMainWindow() => (Application.Current.MainWindow as MainWindow)?.BringToFront();
 
     [DllImport("user32.dll")]
     private static extern bool AllowSetForegroundWindow(int processId);

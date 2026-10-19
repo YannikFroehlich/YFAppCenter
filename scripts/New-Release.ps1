@@ -32,6 +32,8 @@ if (-not $NoUpload -and (git -C $root status --porcelain)) {
     throw 'Es gibt nicht committete Änderungen. Erst committen, dann veröffentlichen.'
 }
 
+# Spielerkennung aus YFTimeTracker; fehlt nach einem Klon ohne --recursive.
+Invoke-Checked git @('-C', $root, 'submodule', 'update', '--init')
 Invoke-Checked dotnet @('test', (Join-Path $root 'YFAppCenter.Tests'))
 Invoke-Checked dotnet @(
     'publish', (Join-Path $root 'YFAppCenter'),

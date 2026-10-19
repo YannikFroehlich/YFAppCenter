@@ -351,7 +351,7 @@
                           Checked="OnShowHiddenChanged" Unchecked="OnShowHiddenChanged" />
                 <CheckBox x:Name="AutostartBox" Content="Mit Windows starten" Margin="0,0,0,12"
                           Checked="OnAutostartChanged" Unchecked="OnAutostartChanged"
-                          ToolTip="Startet minimiert bei der Windows-Anmeldung" />
+                          ToolTip="Startet bei der Windows-Anmeldung im Infobereich" />
                 <DockPanel>
                     <Button x:Name="RescanButton" DockPanel.Dock="Right" Click="OnRescanClick" Padding="8,6"
                             ToolTip="Installierte Spiele neu suchen">

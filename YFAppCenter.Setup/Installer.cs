@@ -185,7 +185,7 @@ public static class Installer
             var stub = Path.Combine(directory, StubName);
             SetShortcut(StartMenuShortcutPath, options.StartMenuShortcut, stub, directory);
             SetShortcut(DesktopShortcutPath, options.DesktopShortcut, stub, directory);
-            SetAutostart(options.Autostart ? Path.Combine(directory, "current", "YFAppCenter.exe") : null);
+            SetAutostart(options.Autostart ? stub : null);
 
             progress.Report((97, "Trage YF AppCenter unter „Apps“ ein …"));
             Register(directory, options);

@@ -26,9 +26,12 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         AutostartBox.IsChecked = Autostart.IsEnabled;
+        SetUpTray();
         if (Environment.GetCommandLineArgs().Contains(Autostart.MinimizedArgument))
         {
             WindowState = WindowState.Minimized;
+            // Beim ersten Anzeigen meldet WPF keinen Zustandswechsel, daher hier selbst in den Infobereich.
+            Loaded += (_, _) => Hide();
         }
 
         Refresh();
@@ -65,6 +68,58 @@ public partial class MainWindow : Window
     }
 
     private void OnUpdateRestartClick(object sender, RoutedEventArgs e) => AppUpdater.ApplyAndRestart();
+
+    // Minimiert verschwindet das Fenster aus der Taskleiste und bleibt über das Tray-Symbol erreichbar.
+    private readonly System.Windows.Forms.NotifyIcon tray = new() { Text = "YF AppCenter" };
+
+    private void SetUpTray()
+    {
+        using (var icon = Application.GetResourceStream(new Uri("pack://application:,,,/AppCenter.ico")).Stream)
+        {
+            tray.Icon = new System.Drawing.Icon(icon, System.Windows.Forms.SystemInformation.SmallIconSize);
+        }
+
+        tray.ContextMenuStrip = new System.Windows.Forms.ContextMenuStrip
+        {
+            Items =
+            {
+                { "Öffnen", null, (_, _) => BringToFront() },
+                { "Beenden", null, (_, _) => Close() }
+            }
+        };
+        tray.MouseClick += (_, e) =>
+        {
+            if (e.Button == System.Windows.Forms.MouseButtons.Left)
+            {
+                BringToFront();
+            }
+        };
+        tray.Visible = true;
+        // Sonst bleibt das Symbol nach dem Beenden stehen, bis die Maus darüberfährt.
+        Closed += (_, _) => tray.Dispose();
+    }
+
+    protected override void OnStateChanged(EventArgs e)
+    {
+        base.OnStateChanged(e);
+        if (WindowState == WindowState.Minimized)
+        {
+            Hide();
+        }
+    }
+
+    /// <summary>Holt das Fenster aus dem Infobereich nach vorne, etwa bei einem zweiten Start der App.</summary>
+    public void BringToFront()
+    {
+        Show();
+        if (WindowState == WindowState.Minimized)
+        {
+            // Stellt auch ein vorher maximiertes Fenster wieder maximiert her.
+            SystemCommands.RestoreWindow(this);
+        }
+
+        Activate();
+    }
 
     // Controller: nur abfragen, solange das Fenster im Vordergrund ist. Ohne Controller seltener,
     // weil XInput leere Anschlüsse vergleichsweise langsam abfragt.
@@ -285,8 +340,13 @@ public partial class MainWindow : Window
         try
         {
             var detected = await GameScanner.ScanAsync();
-            library = Library.Merge(library, detected);
+            var merged = Library.Merge(library, detected);
+            var keptIds = merged.Select(entry => entry.Id).ToHashSet();
+            var removed = library.Where(entry => !keptIds.Contains(entry.Id)).ToList();
+            library = merged;
             Library.Save(library);
+            // Erst nach dem Speichern löschen, damit die Bibliothek nie auf fehlende Dateien zeigt.
+            removed.ForEach(Library.DeleteImportedFiles);
             StatusText.Text = $"{detected.Count} Spiele erkannt · {library.Count(entry => entry.IsManual)} eigene Einträge";
         }
         catch (Exception exception)
@@ -624,8 +684,14 @@ public partial class MainWindow : Window
         SaveAndRefresh();
     }
 
-    // Feuert auch beim Setzen des Startzustands; das schreibt nur den aktuellen Programmpfad neu.
-    private void OnAutostartChanged(object sender, RoutedEventArgs e) => Autostart.Set(AutostartBox.IsChecked == true);
+    private void OnAutostartChanged(object sender, RoutedEventArgs e)
+    {
+        // Feuert auch beim Setzen des Startzustands; ein Entwickler-Build würde sonst seinen Pfad eintragen.
+        if (IsLoaded)
+        {
+            Autostart.Set(AutostartBox.IsChecked == true);
+        }
+    }
 
     private async void OnRescanClick(object sender, RoutedEventArgs e) => await RescanAsync();
 
@@ -779,10 +845,8 @@ public partial class MainWindow : Window
             Add("Entfernen", () =>
             {
                 library.Remove(entry);
-                Library.DeleteImportedFile(entry.Target);
-                Library.DeleteImportedFile(entry.CustomTarget);
-                Library.DeleteImportedFile(entry.CustomCoverPath);
                 SaveAndRefresh();
+                Library.DeleteImportedFiles(entry);
             });
         }
         else

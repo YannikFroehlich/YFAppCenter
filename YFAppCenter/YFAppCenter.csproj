@@ -4,6 +4,8 @@
     <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
     <SupportedOSPlatformVersion>10.0.22000.0</SupportedOSPlatformVersion>
     <UseWPF>true</UseWPF>
+    <!-- Nur für das Tray-Symbol (NotifyIcon); WPF hat keins. -->
+    <UseWindowsForms>true</UseWindowsForms>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationIcon>AppCenter.ico</ApplicationIcon>
@@ -14,10 +16,13 @@
     <StartupObject>YFAppCenter.Program</StartupObject>
   </PropertyGroup>
   <ItemGroup>
-    <!-- Spielerkennung kommt direkt aus YFTimeTracker, damit beide Programme dieselben Spiele finden. -->
-    <ProjectReference Include="..\..\YFTimeTracker\YFTimeTracker.Windows\YFTimeTracker.Windows.csproj" />
+    <!-- Spielerkennung kommt direkt aus YFTimeTracker (Git-Submodul), damit beide Programme dieselben Spiele finden. -->
+    <ProjectReference Include="..\external\YFTimeTracker\YFTimeTracker.Windows\YFTimeTracker.Windows.csproj" />
     <PackageReference Include="Velopack" Version="1.2.0" />
     <Resource Include="AppCenter.ico" />
     <InternalsVisibleTo Include="YFAppCenter.Tests" />
+    <!-- Sonst kollidieren WinForms-Typen (Button, MessageBox …) mit denen von WPF. -->
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
   </ItemGroup>
 </Project>

@@ -199,6 +199,14 @@ public static class Library
         return copy;
     }
 
+    /// <summary>Löscht die Verknüpfungs- und Cover-Kopien eines Eintrags, der aus der Bibliothek entfernt wurde.</summary>
+    public static void DeleteImportedFiles(LibraryEntry entry)
+    {
+        DeleteImportedFile(entry.Target);
+        DeleteImportedFile(entry.CustomTarget);
+        DeleteImportedFile(entry.CustomCoverPath);
+    }
+
     /// <summary>Löscht nur Kopien, die das AppCenter selbst angelegt hat.</summary>
     public static void DeleteImportedFile(string? path)
     {
@@ -292,6 +300,20 @@ public static class Autostart
     private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
     private const string ValueName = "YFAppCenter";
 
+    /// <summary>
+    /// Velopacks Starter im Installationsordner (eine Ebene über "current"), wie ihn auch der Installer einträgt.
+    /// Ohne Installation, etwa beim Entwickeln, die laufende Datei.
+    /// </summary>
+    private static string Executable
+    {
+        get
+        {
+            var installRoot = Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(AppContext.BaseDirectory))!;
+            var stub = Path.Combine(installRoot, "YF AppCenter.exe");
+            return File.Exists(stub) ? stub : Environment.ProcessPath!;
+        }
+    }
+
     public static bool IsEnabled
     {
         get
@@ -306,7 +328,7 @@ public static class Autostart
         using var key = Registry.CurrentUser.CreateSubKey(RunKey);
         if (enabled)
         {
-            key.SetValue(ValueName, $"\"{Environment.ProcessPath}\" {MinimizedArgument}");
+            key.SetValue(ValueName, $"\"{Executable}\" {MinimizedArgument}");
         }
         else
         {

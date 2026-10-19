@@ -1,0 +1,3 @@
+[submodule "external/YFTimeTracker"]
+	path = external/YFTimeTracker
+	url = https://github.com/YannikFroehlich/YFTimeTracker
