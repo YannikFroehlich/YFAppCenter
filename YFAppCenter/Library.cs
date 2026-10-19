@@ -29,6 +29,8 @@ public sealed class LibraryEntry : INotifyPropertyChanged
     /// <summary>Breites Titelbild und Schriftzug aus dem Steam-Cache; für das Banner der Startseite.</summary>
     public string? HeroPath { get; set; }
     public string? LogoPath { get; set; }
+    /// <summary>Querformatiges Titelbild aus dem Steam-Cache; für die Kacheln.</summary>
+    public string? HeaderPath { get; set; }
     /// <summary>Installationsordner erkannter Spiele; läuft eine .exe darin, gilt das Spiel als gestartet.</summary>
     public string? InstallDirectory { get; set; }
     public bool IsGame { get; set; }
@@ -49,6 +51,7 @@ public sealed class LibraryEntry : INotifyPropertyChanged
     [JsonIgnore] public string LaunchTarget => CustomTarget ?? Target;
     [JsonIgnore] public string? IconSource => CustomIconPath ?? IconPath;
     [JsonIgnore] public ImageSource? Cover => ImageCache.Load(CustomCoverPath);
+    [JsonIgnore] public ImageSource? TileArt => ImageCache.Load(CustomCoverPath ?? HeaderPath, ImageCache.TileWidth);
 
     [JsonIgnore]
     public string Subtitle => IsManual ? (IsGame ? "Spiel" : "Programm") : Id.Split(':')[0] switch
@@ -398,6 +401,7 @@ public static class GameScanner
                         IconPath = xboxLogo ?? registryIcon ?? executable,
                         HeroPath = steamArt is null ? null : FindSteamImage(steamArt, game.ExternalGameId, "library_hero.jpg"),
                         LogoPath = steamArt is null ? null : FindSteamImage(steamArt, game.ExternalGameId, "logo.png"),
+                        HeaderPath = steamArt is null ? null : FindSteamImage(steamArt, game.ExternalGameId, "header.jpg"),
                         InstallDirectory = game.InstallDirectory,
                         IsGame = true
                     });
@@ -551,24 +555,29 @@ public static class GameScanner
 
 public static class ImageCache
 {
-    // Nur vom UI-Thread benutzt.
-    private static readonly Dictionary<string, ImageSource?> Images = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>Dekodierbreite für Kachelbilder: doppelte Kachelbreite, damit sie auch bei 200 % Skalierung scharf sind.</summary>
+    public const int TileWidth = 440;
 
-    public static ImageSource? Load(string? path)
+    // Nur vom UI-Thread benutzt.
+    private static readonly Dictionary<(string Path, int Width), ImageSource?> Images = [];
+
+    /// <summary>Lädt ein Bild verkleinert auf <paramref name="decodeWidth"/>, damit viele Kacheln wenig Speicher brauchen.</summary>
+    public static ImageSource? Load(string? path, int decodeWidth = 1600)
     {
         if (path is null || !File.Exists(path))
         {
             return null;
         }
 
-        if (!Images.TryGetValue(path, out var image))
+        var key = (path.ToLowerInvariant(), decodeWidth);
+        if (!Images.TryGetValue(key, out var image))
         {
             try
             {
                 var bitmap = new BitmapImage();
                 bitmap.BeginInit();
                 bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                bitmap.DecodePixelWidth = 1600;
+                bitmap.DecodePixelWidth = decodeWidth;
                 bitmap.UriSource = new Uri(path);
                 bitmap.EndInit();
                 bitmap.Freeze();
@@ -579,7 +588,7 @@ public static class ImageCache
                 image = null;
             }
 
-            Images[path] = image;
+            Images[key] = image;
         }
 
         return image;

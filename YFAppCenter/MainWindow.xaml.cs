@@ -470,6 +470,7 @@ public partial class MainWindow : Window
             : matches.Count == 1 ? "1 Eintrag" : $"{matches.Count} Einträge";
 
         EmptyState.Visibility = visible.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        EmptyActions.Visibility = pool.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         (EmptyGlyph.Text, EmptyTitle.Text, EmptyText.Text) = (query.Length > 0, filter) switch
         {
             (true, _) => ("", "Keine Treffer", $"Nichts passt zu „{query}“."),
@@ -507,6 +508,8 @@ public partial class MainWindow : Window
         }
 
         HeroImage.Source = featured.Cover ?? ImageCache.Load(featured.HeroPath);
+        // Auf hellem Hintergrund würde ein kräftiger Farbschein Überschrift und Suche grau eintrüben.
+        Ambient.Opacity = FindResource("SolidBackgroundFillColorBaseBrush") is SolidColorBrush { Color.R: > 128 } ? 0.22 : 0.55;
         HeroLogo.Source = ImageCache.Load(featured.LogoPath);
         HeroLogo.Visibility = HeroLogo.Source is null ? Visibility.Collapsed : Visibility.Visible;
         HeroTitle.Visibility = HeroLogo.Source is null ? Visibility.Visible : Visibility.Collapsed;
@@ -584,8 +587,7 @@ public partial class MainWindow : Window
 
     private void OnActivated(object? sender, EventArgs e)
     {
-        SearchBox.Focus();
-        _ = UpdateRunningAsync();
+        SearchBox.Focus();        _ = UpdateRunningAsync();
     }
 
     private void OnSearchChanged(object sender, TextChangedEventArgs e) => Refresh();
@@ -694,6 +696,13 @@ public partial class MainWindow : Window
     }
 
     private async void OnRescanClick(object sender, RoutedEventArgs e) => await RescanAsync();
+
+    private void OnSettingsClick(object sender, RoutedEventArgs e)
+    {
+        SettingsButton.ContextMenu.PlacementTarget = SettingsButton;
+        SettingsButton.ContextMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Top;
+        SettingsButton.ContextMenu.IsOpen = true;
+    }
 
     private void OnTileClick(object sender, RoutedEventArgs e) => Launch((LibraryEntry)((Button)sender).DataContext);
 
