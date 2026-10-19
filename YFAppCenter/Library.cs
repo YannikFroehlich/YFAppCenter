@@ -71,8 +71,24 @@ public sealed class LibraryEntry : INotifyPropertyChanged
         set
         {
             icon = value;
+            IconWash = value is BitmapSource { PixelWidth: > 0, PixelHeight: > 0 } bitmap ? Shrink(bitmap) : null;
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Icon)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IconWash)));
         }
+    }
+
+    /// <summary>
+    /// Das Icon auf wenige Pixel verkleinert; groß gezogen ergibt das einen weichen Farbverlauf wie ein
+    /// Weichzeichner, kostet aber keinen Grafikeffekt pro Kachel.
+    /// </summary>
+    [JsonIgnore] public ImageSource? IconWash { get; private set; }
+
+    private static BitmapSource Shrink(BitmapSource bitmap)
+    {
+        const double size = 6;
+        var small = new TransformedBitmap(bitmap, new ScaleTransform(size / bitmap.PixelWidth, size / bitmap.PixelHeight));
+        small.Freeze();
+        return small;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -555,8 +571,14 @@ public static class GameScanner
 
 public static class ImageCache
 {
-    /// <summary>Dekodierbreite für Kachelbilder: doppelte Kachelbreite, damit sie auch bei 200 % Skalierung scharf sind.</summary>
-    public const int TileWidth = 440;
+    /// <summary>
+    /// Dekodierbreite für Kachelbilder in Pixeln; die App setzt sie passend zur Bildschirmskalierung,
+    /// damit Bilder scharf sind, ohne mehr Speicher als nötig zu belegen.
+    /// </summary>
+    public static int TileWidth { get; set; } = 280;
+
+    /// <summary>So klein dekodiert ergibt ein groß gezogenes Bild einen weichen Farbschein.</summary>
+    public const int GlowWidth = 16;
 
     // Nur vom UI-Thread benutzt.
     private static readonly Dictionary<(string Path, int Width), ImageSource?> Images = [];
@@ -597,6 +619,9 @@ public static class ImageCache
 
 public static class IconLoader
 {
+    // Icons erscheinen mit höchstens 68 px; 128 px bleiben auch bei 200 % Skalierung scharf und brauchen ein Viertel von 256 px.
+    private const int IconSize = 128;
+
     // Nur vom UI-Thread benutzt.
     private static readonly Dictionary<string, Task<ImageSource?>> Cache = new(StringComparer.OrdinalIgnoreCase);
 
@@ -636,7 +661,7 @@ public static class IconLoader
         try
         {
             var file = await StorageFile.GetFileFromPathAsync(path);
-            using var thumbnail = await file.GetThumbnailAsync(ThumbnailMode.SingleItem, 256, ThumbnailOptions.ResizeThumbnail);
+            using var thumbnail = await file.GetThumbnailAsync(ThumbnailMode.SingleItem, IconSize, ThumbnailOptions.ResizeThumbnail);
             if (thumbnail is null || thumbnail.Size == 0)
             {
                 return null;
@@ -646,6 +671,7 @@ public static class IconLoader
             var image = new BitmapImage();
             image.BeginInit();
             image.CacheOption = BitmapCacheOption.OnLoad;
+            image.DecodePixelWidth = IconSize;
             image.StreamSource = stream;
             image.EndInit();
             image.Freeze();

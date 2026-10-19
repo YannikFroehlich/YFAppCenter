@@ -238,7 +238,8 @@
                 <StackPanel>
                     <Grid>
                         <!-- Schatten und Fokusring liegen hinter bzw. um das Bild und verschieben nichts. -->
-                        <Border x:Name="Shadow" CornerRadius="12" Background="{DynamicResource SolidBackgroundFillColorBaseBrush}" Opacity="0">
+                        <!-- Collapsed statt unsichtbar: so kostet der Schatten nur bei Hover/Fokus Rechenzeit. -->
+                        <Border x:Name="Shadow" CornerRadius="12" Background="{DynamicResource SolidBackgroundFillColorBaseBrush}" Visibility="Collapsed">
                             <Border.Effect>
                                 <DropShadowEffect BlurRadius="28" ShadowDepth="8" Direction="270" Opacity="0.55" />
                             </Border.Effect>
@@ -250,19 +251,12 @@
                                 <RectangleGeometry Rect="0,0,216,122" RadiusX="12" RadiusY="12" />
                             </Grid.Clip>
                             <Border Background="{DynamicResource SubtleFillColorSecondaryBrush}" />
-                            <!-- Weichgezeichnetes Icon als farbiger Hintergrund der Karte. -->
-                            <Image Source="{Binding Icon}" Stretch="UniformToFill" Margin="-60" Opacity="0.75">
-                                <Image.Effect>
-                                    <BlurEffect Radius="60" />
-                                </Image.Effect>
-                            </Image>
+                            <!-- Icon-Farben als weicher Hintergrund der Karte (ohne Grafikeffekt, siehe IconWash). -->
+                            <Image Source="{Binding IconWash}" Stretch="Fill" Margin="-30" Opacity="0.75"
+                                   RenderOptions.BitmapScalingMode="Linear" />
                             <TextBlock x:Name="Glyph" Style="{StaticResource Glyph}" Text="&#xE71D;" FontSize="40"
                                        HorizontalAlignment="Center" Opacity="0.5" Visibility="Collapsed" />
-                            <Image Source="{Binding Icon}" Width="68" Height="68" RenderOptions.BitmapScalingMode="HighQuality">
-                                <Image.Effect>
-                                    <DropShadowEffect BlurRadius="18" ShadowDepth="4" Direction="270" Opacity="0.45" />
-                                </Image.Effect>
-                            </Image>
+                            <Image Source="{Binding Icon}" Width="68" Height="68" RenderOptions.BitmapScalingMode="HighQuality" />
                             <!-- Eigenes Cover oder Steam-Titelbild deckt Icon und Hintergrund komplett ab. -->
                             <Image Source="{Binding TileArt}" Stretch="UniformToFill" />
                             <!-- Feiner Innenrand, damit helle Bilder nicht mit dem Hintergrund verschwimmen. -->
@@ -281,9 +275,6 @@
                             <Border.RenderTransform>
                                 <TranslateTransform x:Name="PlayShift" Y="6" />
                             </Border.RenderTransform>
-                            <Border.Effect>
-                                <DropShadowEffect BlurRadius="10" ShadowDepth="2" Opacity="0.4" />
-                            </Border.Effect>
                             <TextBlock Style="{StaticResource Glyph}" Text="&#xE768;" FontSize="14" Margin="2,0,0,0"
                                        HorizontalAlignment="Center" Foreground="{DynamicResource TextOnAccentFillColorPrimaryBrush}" />
                             </Border>
@@ -306,10 +297,10 @@
                 <Trigger SourceName="Tile" Property="IsKeyboardFocused" Value="True">
                     <Setter TargetName="PlayBadge" Property="Opacity" Value="1" />
                     <Setter TargetName="FocusRing" Property="Visibility" Value="Visible" />
-                    <Setter TargetName="Shadow" Property="Opacity" Value="1" />
+                    <Setter TargetName="Shadow" Property="Visibility" Value="Visible" />
                 </Trigger>
                 <Trigger SourceName="Tile" Property="IsMouseOver" Value="True">
-                    <Setter TargetName="Shadow" Property="Opacity" Value="1" />
+                    <Setter TargetName="Shadow" Property="Visibility" Value="Visible" />
                     <Trigger.EnterActions>
                         <BeginStoryboard>
                             <Storyboard>
@@ -460,10 +451,11 @@
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
-                <!-- Farbschein der Startseite: das Bannerbild stark weichgezeichnet hinter Kopf und Banner. -->
+                <!-- Farbschein der Startseite: das Bannerbild winzig dekodiert und groß gezogen, das wirkt wie ein
+                     starker Weichzeichner ohne Grafikeffekt (siehe UpdateHero). -->
                 <Grid Grid.RowSpan="2" ClipToBounds="True" IsHitTestVisible="False" Height="700" VerticalAlignment="Top"
                       Visibility="{Binding Visibility, ElementName=Hero}">
-                    <!-- Absolute Koordinaten: die weichgezeichnete Fläche ragt über den Rand hinaus und würde den Verlauf sonst strecken. -->
+                    <!-- Absolute Koordinaten: das Bild ragt über den Rand hinaus und würde den Verlauf sonst strecken. -->
                     <Grid.OpacityMask>
                         <LinearGradientBrush MappingMode="Absolute" StartPoint="0,0" EndPoint="0,700">
                             <GradientStop Color="#FF000000" Offset="0" />
@@ -471,15 +463,7 @@
                             <GradientStop Color="#00000000" Offset="1" />
                         </LinearGradientBrush>
                     </Grid.OpacityMask>
-                    <Image x:Name="Ambient" Source="{Binding Source, ElementName=HeroImage}" Stretch="UniformToFill"
-                           Margin="-160" Opacity="0.55">
-                        <Image.Effect>
-                            <BlurEffect Radius="140" />
-                        </Image.Effect>
-                        <Image.CacheMode>
-                            <BitmapCache />
-                        </Image.CacheMode>
-                    </Image>
+                    <Image x:Name="Ambient" Stretch="Fill" Margin="-80" Opacity="0.55" RenderOptions.BitmapScalingMode="Linear" />
                 </Grid>
 
                 <DockPanel Margin="40,30,40,10">
@@ -526,11 +510,8 @@
                         </Grid.Clip>
                         <Grid>
                             <Rectangle Fill="#FF18181C" />
-                            <Image Source="{Binding Icon}" Stretch="UniformToFill" Margin="-120" Opacity="0.6">
-                                <Image.Effect>
-                                    <BlurEffect Radius="90" />
-                                </Image.Effect>
-                            </Image>
+                            <Image Source="{Binding IconWash}" Stretch="Fill" Margin="-60" Opacity="0.6"
+                                   RenderOptions.BitmapScalingMode="Linear" />
                             <Image x:Name="HeroImage" Stretch="UniformToFill" VerticalAlignment="Center" />
                             <Rectangle>
                                 <Rectangle.Fill>
@@ -556,23 +537,12 @@
                                         Background="#33FFFFFF" BorderBrush="#26FFFFFF" BorderThickness="1">
                                     <TextBlock x:Name="HeroLabel" FontSize="11" FontWeight="SemiBold" />
                                 </Border>
-                                <Image x:Name="HeroLogo" MaxHeight="96" MaxWidth="340" HorizontalAlignment="Left" Stretch="Uniform">
-                                    <Image.Effect>
-                                        <DropShadowEffect BlurRadius="20" ShadowDepth="0" Opacity="0.6" />
-                                    </Image.Effect>
-                                </Image>
+                                <!-- Ohne Schatteneffekte: der dunkle Verlauf links hält Schrift und Logo lesbar. -->
+                                <Image x:Name="HeroLogo" MaxHeight="96" MaxWidth="340" HorizontalAlignment="Left" Stretch="Uniform" />
                                 <StackPanel x:Name="HeroTitle" Orientation="Horizontal">
-                                    <Image Source="{Binding Icon}" Width="60" Height="60" Margin="0,0,18,0">
-                                        <Image.Effect>
-                                            <DropShadowEffect BlurRadius="18" ShadowDepth="3" Opacity="0.5" />
-                                        </Image.Effect>
-                                    </Image>
+                                    <Image Source="{Binding Icon}" Width="60" Height="60" Margin="0,0,18,0" />
                                     <TextBlock Text="{Binding DisplayName}" FontSize="40" FontWeight="Bold" VerticalAlignment="Center"
-                                               TextTrimming="CharacterEllipsis" MaxWidth="600">
-                                        <TextBlock.Effect>
-                                            <DropShadowEffect BlurRadius="16" ShadowDepth="0" Opacity="0.5" />
-                                        </TextBlock.Effect>
-                                    </TextBlock>
+                                               TextTrimming="CharacterEllipsis" MaxWidth="600" />
                                 </StackPanel>
                                 <TextBlock Text="{Binding Subtitle}" Opacity="0.75" Margin="0,10,0,20" />
                                 <StackPanel Orientation="Horizontal">

@@ -20,32 +20,60 @@ public partial class MainWindow : Window
     private LibraryEntry? featured;
     private HashSet<string> runningIds = [];
     private bool checkingRunning;
-    private readonly System.Windows.Threading.DispatcherTimer runningTimer = new() { Interval = TimeSpan.FromSeconds(3) };
+    private readonly System.Windows.Threading.DispatcherTimer runningTimer = new() { Interval = TimeSpan.FromSeconds(5) };
 
     public MainWindow()
     {
         InitializeComponent();
+        // Kachelbilder in der tatsächlich benötigten Auflösung laden (Kachel 216 px plus Reserve fürs Zuschneiden).
+        ImageCache.TileWidth = (int)(280 * VisualTreeHelper.GetDpi(this).DpiScaleX);
         AutostartBox.IsChecked = Autostart.IsEnabled;
         SetUpTray();
+        IsVisibleChanged += OnVisibilityChanged;
         if (Environment.GetCommandLineArgs().Contains(Autostart.MinimizedArgument))
         {
             WindowState = WindowState.Minimized;
             // Beim ersten Anzeigen meldet WPF keinen Zustandswechsel, daher hier selbst in den Infobereich.
-            Loaded += (_, _) => Hide();
+            // Bei der Windows-Anmeldung nichts durchsuchen; erst wenn das Fenster zum ersten Mal geöffnet wird.
+            Loaded += (_, _) =>
+            {
+                Hide();
+                IsVisibleChanged += RescanOnFirstShow;
+            };
+        }
+        else
+        {
+            Loaded += async (_, _) => await RescanAsync();
         }
 
         Refresh();
-        Loaded += async (_, _) => await RescanAsync();
+        // Laufende Programme und Controller nur prüfen, solange das Fenster im Vordergrund ist.
         runningTimer.Tick += async (_, _) => await UpdateRunningAsync();
-        runningTimer.Start();
         padTimer.Tick += (_, _) => PollGamepad();
-        Activated += (_, _) => padTimer.Start();
-        Deactivated += (_, _) => padTimer.Stop();
+        Activated += (_, _) =>
+        {
+            runningTimer.Start();
+            padTimer.Start();
+        };
+        Deactivated += (_, _) =>
+        {
+            runningTimer.Stop();
+            padTimer.Stop();
+        };
         LogoPanel.ToolTip = $"Version {AppUpdater.CurrentVersion}";
         AppUpdater.SyncInstalledVersion();
         Loaded += async (_, _) => await CheckForUpdateAsync();
         updateTimer.Tick += async (_, _) => await CheckForUpdateAsync();
         updateTimer.Start();
+    }
+
+    private async void RescanOnFirstShow(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (IsVisible)
+        {
+            IsVisibleChanged -= RescanOnFirstShow;
+            await RescanAsync();
+        }
     }
 
     // Läuft die App per Autostart tagelang, soll sie trotzdem neue Versionen finden.
@@ -107,6 +135,17 @@ public partial class MainWindow : Window
             Hide();
         }
     }
+
+    /// <summary>
+    /// Im Infobereich auf Software-Rendering umschalten: dann gibt der Grafiktreiber seinen Speicher im
+    /// App-Prozess frei (gemessen gut 200 MB). Sichtbar wieder per Grafikkarte, damit Scrollen flüssig bleibt.
+    /// </summary>
+    private void OnVisibilityChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (PresentationSource.FromVisual(this) is System.Windows.Interop.HwndSource { CompositionTarget: { } target })
+        {
+            target.RenderMode = IsVisible ? System.Windows.Interop.RenderMode.Default : System.Windows.Interop.RenderMode.SoftwareOnly;
+        }    }
 
     /// <summary>Holt das Fenster aus dem Infobereich nach vorne, etwa bei einem zweiten Start der App.</summary>
     public void BringToFront()
@@ -334,8 +373,7 @@ public partial class MainWindow : Window
     }
 
     private async Task RescanAsync()
-    {
-        RescanButton.IsEnabled = false;
+    {        RescanButton.IsEnabled = false;
         StatusText.Text = "Suche installierte Spiele …";
         try
         {
@@ -508,6 +546,7 @@ public partial class MainWindow : Window
         }
 
         HeroImage.Source = featured.Cover ?? ImageCache.Load(featured.HeroPath);
+        Ambient.Source = ImageCache.Load(featured.CustomCoverPath ?? featured.HeroPath, ImageCache.GlowWidth) ?? featured.IconWash;
         // Auf hellem Hintergrund würde ein kräftiger Farbschein Überschrift und Suche grau eintrüben.
         Ambient.Opacity = FindResource("SolidBackgroundFillColorBaseBrush") is SolidColorBrush { Color.R: > 128 } ? 0.22 : 0.55;
         HeroLogo.Source = ImageCache.Load(featured.LogoPath);
