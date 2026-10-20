@@ -83,10 +83,18 @@ public partial class MainWindow : Window
     {
         try
         {
-            if (await AppUpdater.DownloadUpdateAsync() is { } version)
+            if (await AppUpdater.DownloadUpdateAsync() is { } version && !trayUpdateItem.Available)
             {
                 UpdateText.Text = $"Version {version} ist bereit";
                 UpdatePanel.Visibility = Visibility.Visible;
+                trayUpdateItem.Text = $"Version {version} installieren";
+                trayUpdateItem.Available = true;
+                // Im Infobereich (etwa nach dem Autostart) sieht man den Hinweis im Fenster nicht; einmal pro Version melden.
+                if (!IsVisible)
+                {
+                    tray.ShowBalloonTip(10000, "Update verfügbar", $"YF AppCenter {version} ist bereit. Klicken, um es jetzt zu installieren.",
+                        System.Windows.Forms.ToolTipIcon.Info);
+                }
             }
         }
         catch (Exception)
@@ -99,6 +107,7 @@ public partial class MainWindow : Window
 
     // Minimiert verschwindet das Fenster aus der Taskleiste und bleibt über das Tray-Symbol erreichbar.
     private readonly System.Windows.Forms.NotifyIcon tray = new() { Text = "YF AppCenter" };
+    private readonly System.Windows.Forms.ToolStripMenuItem trayUpdateItem = new() { Available = false };
 
     private void SetUpTray()
     {
@@ -107,10 +116,13 @@ public partial class MainWindow : Window
             tray.Icon = new System.Drawing.Icon(icon, System.Windows.Forms.SystemInformation.SmallIconSize);
         }
 
+        trayUpdateItem.Click += (_, _) => AppUpdater.ApplyAndRestart();
+        tray.BalloonTipClicked += (_, _) => AppUpdater.ApplyAndRestart();
         tray.ContextMenuStrip = new System.Windows.Forms.ContextMenuStrip
         {
             Items =
             {
+                trayUpdateItem,
                 { "Öffnen", null, (_, _) => BringToFront() },
                 { "Beenden", null, (_, _) => Close() }
             }
