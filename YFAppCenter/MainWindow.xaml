@@ -122,32 +122,36 @@
             </Setter>
         </Style>
 
-        <!-- Navigation links, im Stil der Windows-11-NavigationView. -->
+        <!-- Farbverlauf aus dem Logo; markiert den gewählten Bereich. -->
+        <LinearGradientBrush x:Key="BrandBrush" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#2563EB" Offset="0" />
+            <GradientStop Color="#7C3AED" Offset="1" />
+        </LinearGradientBrush>
+
+        <!-- Navigation links im Launcher-Stil: gewählter Bereich als Verlaufsfläche, der Rest gedämpft. -->
         <Style x:Key="NavItem" TargetType="RadioButton">
             <Setter Property="FocusVisualStyle" Value="{x:Null}" />
             <Setter Property="Margin" Value="0,2" />
             <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="RadioButton">
-                        <Grid>
-                            <Border x:Name="Bg" CornerRadius="6" Background="Transparent" Padding="13,9" BorderThickness="1" BorderBrush="Transparent">
-                                <ContentPresenter />
-                            </Border>
-                            <Border x:Name="Pill" Width="3" Height="18" CornerRadius="1.5" HorizontalAlignment="Left"
-                                    Background="{DynamicResource AccentFillColorDefaultBrush}" Visibility="Collapsed" />
-                        </Grid>
+                        <Border x:Name="Bg" CornerRadius="10" Background="Transparent" Padding="12,10" BorderThickness="1.5" BorderBrush="Transparent">
+                            <ContentPresenter />
+                        </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter TargetName="Bg" Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
                             </Trigger>
                             <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="Bg" Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
-                                <Setter TargetName="Pill" Property="Visibility" Value="Visible" />
+                                <Setter TargetName="Bg" Property="Background" Value="{StaticResource BrandBrush}" />
+                                <Setter Property="Foreground" Value="White" />
+                                <Setter Property="FontWeight" Value="SemiBold" />
                             </Trigger>
                             <Trigger Property="IsKeyboardFocused" Value="True">
-                                <Setter TargetName="Bg" Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+                                <Setter TargetName="Bg" Property="BorderBrush" Value="{DynamicResource TextFillColorPrimaryBrush}" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -160,11 +164,53 @@
             <Setter Property="Margin" Value="0,0,14,0" />
         </Style>
 
+        <!-- Erbt die Schriftfarbe, damit die Zahl auch auf der Verlaufsfläche lesbar bleibt. -->
         <Style x:Key="NavCount" TargetType="TextBlock">
             <Setter Property="DockPanel.Dock" Value="Right" />
             <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="Normal" />
             <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Opacity" Value="0.7" />
+        </Style>
+
+        <Style x:Key="NavHeader" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Margin" Value="13,20,0,6" />
             <Setter Property="Foreground" Value="{DynamicResource TextFillColorTertiaryBrush}" />
+        </Style>
+
+        <!-- Rahmenloser Symbolknopf für die Leiste unten links. -->
+        <Style x:Key="IconButton" TargetType="Button">
+            <Setter Property="Width" Value="34" />
+            <Setter Property="Height" Value="34" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bg" CornerRadius="10" Background="Transparent" BorderThickness="1.5" BorderBrush="Transparent">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="{DynamicResource SubtleFillColorTertiaryBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Bg" Property="BorderBrush" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.4" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
 
         <!-- Kachel ohne eigenen Kartenrahmen: das Bild ist die Karte, Titel stehen darunter (wie in Spiele-Launchern). -->
@@ -372,7 +418,7 @@
                 </Border>
                 <DockPanel>
                     <!-- Einstellungen als Menü, damit die Seitenleiste ruhig bleibt. -->
-                    <Button x:Name="SettingsButton" DockPanel.Dock="Right" Click="OnSettingsClick" Padding="8,6" Margin="6,0,0,0"
+                    <Button x:Name="SettingsButton" DockPanel.Dock="Right" Style="{StaticResource IconButton}" Click="OnSettingsClick" Margin="2,0,0,0"
                             ToolTip="Einstellungen" AutomationProperties.Name="Einstellungen">
                         <TextBlock Style="{StaticResource Glyph}" Text="&#xE713;" FontSize="14" />
                         <Button.ContextMenu>
@@ -385,7 +431,7 @@
                             </ContextMenu>
                         </Button.ContextMenu>
                     </Button>
-                    <Button x:Name="RescanButton" DockPanel.Dock="Right" Click="OnRescanClick" Padding="8,6"
+                    <Button x:Name="RescanButton" DockPanel.Dock="Right" Style="{StaticResource IconButton}" Click="OnRescanClick"
                             ToolTip="Installierte Spiele neu suchen" AutomationProperties.Name="Spiele neu suchen">
                         <TextBlock Style="{StaticResource Glyph}" Text="&#xE72C;" FontSize="14" />
                     </Button>
@@ -417,7 +463,7 @@
                             <TextBlock Text="Zuletzt gestartet" />
                         </DockPanel>
                     </RadioButton>
-                    <Border Height="1" Margin="8,10" Background="{DynamicResource CardStrokeColorDefaultBrush}" />
+                    <TextBlock Text="BIBLIOTHEK" Style="{StaticResource NavHeader}" />
                     <RadioButton Style="{StaticResource NavItem}" GroupName="Nav" Tag="games" Checked="OnNavChecked">
                         <DockPanel>
                             <TextBlock Style="{StaticResource NavGlyph}" Text="&#xE7FC;" />
@@ -434,8 +480,7 @@
                     </RadioButton>
 
                     <!-- Eigene Kategorien; entstehen über das Kontextmenü einer Kachel. -->
-                    <TextBlock x:Name="CategoryHeader" Text="Kategorien" FontSize="12" FontWeight="SemiBold" Margin="14,18,0,6"
-                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" Visibility="Collapsed" />
+                    <TextBlock x:Name="CategoryHeader" Text="KATEGORIEN" Style="{StaticResource NavHeader}" Visibility="Collapsed" />
                     <StackPanel x:Name="CategoryNav" />
                 </StackPanel>
             </ScrollViewer>
