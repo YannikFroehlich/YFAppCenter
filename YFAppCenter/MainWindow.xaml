@@ -500,9 +500,10 @@
                     </StackPanel>
                 </DockPanel>
 
-                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
-                              Padding="40,10,22,24">
-                    <StackPanel>
+                <!-- Abstand als Margin statt Padding: der ScrollViewer schneidet am Padding-Rand ab, das kappte
+                     die Kachelschatten der äußeren Spalten. -->
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="40,10,22,24">
                     <!-- Banner der Startseite: zuletzt gestartet, sonst Favorit, sonst ein Spiel des Tages. -->
                     <Grid x:Name="Hero" Height="340" Margin="0,4,18,34" Visibility="Collapsed" SizeChanged="OnHeroSizeChanged">
                         <Grid.Clip>
