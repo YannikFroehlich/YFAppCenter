@@ -397,6 +397,10 @@ public partial class MainWindow : Window
         }
 
         Refresh();
+        if (await StoreArt.FetchMissingAsync(library))
+        {
+            SaveAndRefresh();
+        }
     }
 
     public sealed record Section(string Title, IReadOnlyList<LibraryEntry> Items)

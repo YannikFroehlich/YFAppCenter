@@ -1,7 +1,10 @@
 ﻿using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
+using System.Net;
+using System.Net.Http;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Text.Json.Serialization;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -409,7 +412,7 @@ public static class GameScanner
                     var steamArt = game.Source == GameSource.Steam && steamRoot is not null
                         ? Path.Combine(steamRoot, "appcache", "librarycache")
                         : null;
-                    entries.Add(new LibraryEntry
+                    var entry = new LibraryEntry
                     {
                         Id = $"{game.Source}:{game.ExternalGameId}",
                         Name = game.Name,
@@ -417,10 +420,14 @@ public static class GameScanner
                         IconPath = xboxLogo ?? registryIcon ?? executable,
                         HeroPath = steamArt is null ? null : FindSteamImage(steamArt, game.ExternalGameId, "library_hero.jpg"),
                         LogoPath = steamArt is null ? null : FindSteamImage(steamArt, game.ExternalGameId, "logo.png"),
-                        HeaderPath = steamArt is null ? null : FindSteamImage(steamArt, game.ExternalGameId, "header.jpg"),
+                        // Neuere Steam-Versionen nennen das Titelbild library_header.jpg.
+                        HeaderPath = steamArt is null ? null : FindSteamImage(steamArt, game.ExternalGameId, "header.jpg")
+                            ?? FindSteamImage(steamArt, game.ExternalGameId, "library_header.jpg"),
                         InstallDirectory = game.InstallDirectory,
                         IsGame = true
-                    });
+                    };
+                    StoreArt.ApplyCached(entry);
+                    entries.Add(entry);
                 }
             }
 
@@ -566,6 +573,135 @@ public static class GameScanner
         {
             return (null, null);
         }
+    }
+}
+
+/// <summary>
+/// Holt Titelbild, Banner und Schriftzug aus dem Steam-Shop, für Spiele anderer Launcher über den Namen.
+/// Die Bilder liegen danach im Datenordner; ein leerer Ordner merkt sich, dass es das Spiel dort nicht gibt.
+/// </summary>
+public static class StoreArt
+{
+    private const string ImageBase = "https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps";
+    private const string StoreApi = "https://store.steampowered.com/api";
+    private static readonly string ArtFolder = Path.Combine(Library.DataFolder, "Art");
+    private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(15) };
+
+    private static string FolderFor(string id) => Path.Combine(ArtFolder, string.Join("_", id.Split(Path.GetInvalidFileNameChars())));
+
+    /// <summary>Übernimmt schon geladene Bilder, ohne etwas herunterzuladen. Bilder aus dem Steam-Cache haben Vorrang.</summary>
+    public static void ApplyCached(LibraryEntry entry)
+    {
+        var folder = FolderFor(entry.Id);
+        entry.HeaderPath ??= Existing(Path.Combine(folder, "header.jpg"));
+        entry.HeroPath ??= Existing(Path.Combine(folder, "library_hero.jpg"));
+        entry.LogoPath ??= Existing(Path.Combine(folder, "logo.png"));
+
+        static string? Existing(string path) => File.Exists(path) ? path : null;
+    }
+
+    /// <summary>Lädt Bilder für erkannte Spiele ohne Titelbild. Liefert true, wenn neue dazugekommen sind.</summary>
+    public static async Task<bool> FetchMissingAsync(IEnumerable<LibraryEntry> entries)
+    {
+        var changed = false;
+        foreach (var entry in entries.Where(entry => entry is { IsManual: false, IsGame: true, HeaderPath: null }).ToList())
+        {
+            var folder = FolderFor(entry.Id);
+            if (Directory.Exists(folder))
+            {
+                continue;
+            }
+
+            try
+            {
+                var appId = entry.Id.StartsWith("Steam:", StringComparison.Ordinal) ? entry.Id["Steam:".Length..] : await FindAppIdAsync(entry.Name);
+                var images = new Dictionary<string, byte[]>();
+                var urls = new Dictionary<string, string?>();
+                if (appId is not null)
+                {
+                    // Neuere Spiele haben das Titelbild unter einem Pfad mit Hash, den nur die Shop-Daten kennen.
+                    urls["header.jpg"] = await HeaderUrlAsync(appId);
+                    urls["library_hero.jpg"] = $"{ImageBase}/{appId}/library_hero.jpg";
+                    urls["logo.png"] = $"{ImageBase}/{appId}/logo.png";
+                }
+
+                foreach (var (file, url) in urls)
+                {
+                    if (url is null)
+                    {
+                        continue;
+                    }
+
+                    using var response = await Http.GetAsync(url);
+                    if (response.StatusCode != HttpStatusCode.NotFound)
+                    {
+                        images[file] = await response.EnsureSuccessStatusCode().Content.ReadAsByteArrayAsync();
+                    }
+                }
+
+                // Erst schreiben, wenn alles geklappt hat: ohne Netz wird es beim nächsten Mal erneut versucht.
+                Directory.CreateDirectory(folder);
+                foreach (var (file, bytes) in images)
+                {
+                    await File.WriteAllBytesAsync(Path.Combine(folder, file), bytes);
+                }
+
+                ApplyCached(entry);
+                changed |= images.Count > 0;
+            }
+            catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException or JsonException or KeyNotFoundException or IOException)
+            {
+            }
+        }
+
+        return changed;
+    }
+
+    private static async Task<string?> FindAppIdAsync(string name)
+    {
+        var url = $"{StoreApi}/storesearch/?cc=US&l=english&term={Uri.EscapeDataString(name)}";
+        using var json = JsonDocument.Parse(await Http.GetStringAsync(url));
+        var results = json.RootElement.GetProperty("items").EnumerateArray()
+            .Select(item => (Name: item.GetProperty("name").GetString() ?? "", Id: item.GetProperty("id").GetInt32()))
+            .ToList();
+        if (MatchAppId(name, results) is { } id)
+        {
+            return id.ToString();
+        }
+
+        // Zusätze wie "Cities: Skylines II - PC Edition" findet die Shop-Suche nicht; dann ohne sie suchen.
+        var dash = name.LastIndexOf(" - ", StringComparison.Ordinal);
+        return dash > 0 ? await FindAppIdAsync(name[..dash]) : null;
+    }
+
+    private static async Task<string?> HeaderUrlAsync(string appId)
+    {
+        using var json = JsonDocument.Parse(await Http.GetStringAsync($"{StoreApi}/appdetails?appids={appId}&filters=basic"));
+        return json.RootElement.GetProperty(appId).TryGetProperty("data", out var data)
+            && data.TryGetProperty("header_image", out var url) ? url.GetString() : null;
+    }
+
+    // ponytail: Abgleich nur über den Namen. Erst ein genauer Treffer, sonst der beste Treffer, wenn ein Name wortweise
+    // mit dem anderen beginnt ("Overwatch" ↔ "Overwatch® 2"). Erwischt das ein falsches Spiel: eigenes Cover setzen.
+    internal static int? MatchAppId(string name, IReadOnlyList<(string Name, int Id)> results)
+    {
+        var words = Words(name);
+        if (words.Length == 0 || results.Count == 0)
+        {
+            return null;
+        }
+
+        if (results.FirstOrDefault(result => Words(result.Name).SequenceEqual(words)) is { Id: > 0 } exact)
+        {
+            return exact.Id;
+        }
+
+        var best = Words(results[0].Name);
+        var (shorter, longer) = best.Length < words.Length ? (best, words) : (words, best);
+        return shorter.Length > 0 && longer.Take(shorter.Length).SequenceEqual(shorter) ? results[0].Id : null;
+
+        static string[] Words(string text) =>
+            Regex.Split(text.ToLowerInvariant(), @"[^\p{L}\p{Nd}]+").Where(word => word.Length > 0).ToArray();
     }
 }
 

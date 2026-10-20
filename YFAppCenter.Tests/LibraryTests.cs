@@ -89,6 +89,20 @@ public sealed class LibraryTests
     }
 
     [TestMethod]
+    public void MatchAppId_prefers_exact_names_and_accepts_whole_word_prefixes_of_the_best_result()
+    {
+        (string, int)[] plagueTale = [("A Plague Tale: Innocence - Coats of Arms DLC", 2), ("A Plague Tale: Innocence", 1)];
+        Assert.AreEqual(1, StoreArt.MatchAppId("A Plague Tale: Innocence", plagueTale));
+        Assert.AreEqual(3, StoreArt.MatchAppId("EA SPORTS FC 26", [("EA SPORTS FC™ 26", 3)]));
+        Assert.AreEqual(4, StoreArt.MatchAppId("Overwatch", [("Overwatch® 2", 4)]));
+        Assert.AreEqual(5, StoreArt.MatchAppId("Cities: Skylines II - PC Edition", [("Cities: Skylines II", 5)]));
+        Assert.IsNull(StoreArt.MatchAppId("Rust", [("Rusty Lake: Roots", 6)]), "Nur ganze Wörter zählen.");
+        Assert.IsNull(StoreArt.MatchAppId("Forza Horizon 6", [("Forza Horizon 5", 7)]));
+        Assert.IsNull(StoreArt.MatchAppId("Minecraft Launcher", [("Minecraft Dungeons", 8)]));
+        Assert.IsNull(StoreArt.MatchAppId("VALORANT", []));
+    }
+
+    [TestMethod]
     public void FindMainExecutable_prefers_shallow_non_helper_executables()
     {
         var root = Directory.CreateTempSubdirectory().FullName;
