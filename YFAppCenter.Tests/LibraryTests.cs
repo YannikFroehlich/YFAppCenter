@@ -130,4 +130,33 @@ public sealed class LibraryTests
             Directory.Delete(root, recursive: true);
         }
     }
+
+    [TestMethod]
+    public void Halo_takes_the_vivid_icon_color_and_fades_to_transparent_edges()
+    {
+        // Rotes Feld mit breitem grauem Rahmen auf durchsichtigem Grund: Rot soll sich gegen das Grau durchsetzen.
+        const int size = 32;
+        var pixels = new byte[size * size * 4];
+        for (var y = 0; y < size; y++)
+        {
+            for (var x = 0; x < size; x++)
+            {
+                var red = x is >= 8 and < 24 && y is >= 8 and < 24;
+                var gray = !red && x is >= 4 and < 28 && y is >= 4 and < 28;
+                byte[] bgra = red ? [0, 0, 200, 255] : gray ? [128, 128, 128, 255] : [0, 0, 0, 0];
+                bgra.CopyTo(pixels, (y * size + x) * 4);
+            }
+        }
+
+        var icon = System.Windows.Media.Imaging.BitmapSource.Create(size, size, 96, 96, System.Windows.Media.PixelFormats.Bgra32, null, pixels, size * 4);
+        var halo = LibraryEntry.Halo(icon);
+
+        var result = new byte[halo.PixelWidth * halo.PixelHeight * 4];
+        halo.CopyPixels(result, halo.PixelWidth * 4, 0);
+        var center = (halo.PixelHeight / 2 * halo.PixelWidth + halo.PixelWidth / 2) * 4;
+        Assert.AreEqual(255, result[center + 3], "Mitte voll deckend.");
+        Assert.IsTrue(result[center + 2] > 200 && result[center + 1] < 60 && result[center] < 60, "Mitte in der kräftigen Farbe (Rot).");
+        Assert.AreEqual(0, result[3], "Ecke durchsichtig.");
+        Assert.AreEqual(0, result[(halo.PixelWidth / 2) * 4 + 3], "Rand oben durchsichtig.");
+    }
 }

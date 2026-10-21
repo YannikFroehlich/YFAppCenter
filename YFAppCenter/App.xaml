@@ -2,4 +2,48 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              StartupUri="MainWindow.xaml"
-             ThemeMode="System" />
+             ThemeMode="Dark">
+    <!-- Immer dunkel wie ein Spiele-Launcher: Bilder und Farbscheine wirken nur auf dunklem Grund. -->
+    <Application.Resources>
+        <!-- Fluent holt seine Akzentfarben dynamisch über diese Schlüssel; so tragen auch Menüs, Häkchen und
+             Fokusrahmen die Markenfarbe statt der Windows-Akzentfarbe. -->
+        <Color x:Key="{x:Static SystemColors.AccentColorKey}">#7C3AED</Color>
+        <Color x:Key="{x:Static SystemColors.AccentColorLight1Key}">#8B5CF6</Color>
+        <Color x:Key="{x:Static SystemColors.AccentColorLight2Key}">#8B5CF6</Color>
+        <Color x:Key="{x:Static SystemColors.AccentColorLight3Key}">#A78BFA</Color>
+        <Color x:Key="{x:Static SystemColors.AccentColorDark1Key}">#6D28D9</Color>
+        <Color x:Key="{x:Static SystemColors.AccentColorDark2Key}">#5B21B6</Color>
+        <Color x:Key="{x:Static SystemColors.AccentColorDark3Key}">#4C1D95</Color>
+        <!-- Fluent setzt im dunklen Modus schwarze Schrift auf Akzentflächen; auf Violett braucht es Weiß. -->
+        <SolidColorBrush x:Key="TextOnAccentFillColorPrimaryBrush" Color="#FFFFFF" />
+
+        <!-- Flächen: Inhalt auf tiefem Blauschwarz, Seitenleiste eine Stufe dunkler. -->
+        <SolidColorBrush x:Key="CanvasBrush" Color="#0E0F14" />
+        <SolidColorBrush x:Key="SidebarBrush" Color="#09090D" />
+        <SolidColorBrush x:Key="HairlineBrush" Color="#12FFFFFF" />
+        <SolidColorBrush x:Key="GlassBrush" Color="#0FFFFFFF" />
+        <SolidColorBrush x:Key="GlassHoverBrush" Color="#1AFFFFFF" />
+        <SolidColorBrush x:Key="GlassStrokeBrush" Color="#1AFFFFFF" />
+        <SolidColorBrush x:Key="AccentTextBrush" Color="#A78BFA" />
+
+        <!-- Farbschein oben im Inhalt und der Übergang zurück in die Hintergrundfarbe (Farbe wie CanvasBrush). -->
+        <RadialGradientBrush x:Key="BrandGlowBrush" Center="0.15,0" GradientOrigin="0.15,0" RadiusX="0.85" RadiusY="0.9">
+            <GradientStop Color="#337C3AED" Offset="0" />
+            <GradientStop Color="#142563EB" Offset="0.55" />
+            <GradientStop Color="#002563EB" Offset="1" />
+        </RadialGradientBrush>
+        <LinearGradientBrush x:Key="CanvasFadeBrush" StartPoint="0,0" EndPoint="0,1">
+            <GradientStop Color="#4D0E0F14" Offset="0" />
+            <GradientStop Color="#A60E0F14" Offset="0.5" />
+            <GradientStop Color="#FF0E0F14" Offset="1" />
+        </LinearGradientBrush>
+
+        <!-- Farbverlauf aus dem Logo; für gewählte Bereiche und Hauptaktionen. -->
+        <LinearGradientBrush x:Key="BrandBrush" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#2563EB" Offset="0" />
+            <GradientStop Color="#7C3AED" Offset="1" />
+        </LinearGradientBrush>
+
+        <FontFamily x:Key="DisplayFont">Segoe UI Variable Display, Segoe UI</FontFamily>
+    </Application.Resources>
+</Application>

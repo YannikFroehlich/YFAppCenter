@@ -1,9 +1,12 @@
 ﻿using System.Diagnostics;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using Microsoft.Win32;
 
@@ -47,6 +50,7 @@ public partial class MainWindow : Window
         }
 
         Refresh();
+        Loaded += (_, _) => ShowPage();
         // Laufende Programme und Controller nur prüfen, solange das Fenster im Vordergrund ist.
         runningTimer.Tick += async (_, _) => await UpdateRunningAsync();
         padTimer.Tick += (_, _) => PollGamepad();
@@ -145,8 +149,53 @@ public partial class MainWindow : Window
         if (WindowState == WindowState.Minimized)
         {
             Hide();
+            return;
         }
+
+        var maximized = WindowState == WindowState.Maximized;
+        MaximizeGlyph.Text = maximized ? "" : "";
+        MaximizeButton.ToolTip = maximized ? "Verkleinern" : "Maximieren";
+        FitMaximized();
     }
+
+    /// <summary>
+    /// Maximiert legt Windows den Fensterrahmen außerhalb des Bildschirms an. Ohne eigene Titelleiste gehört er oben
+    /// ganz und an den übrigen Seiten teilweise zum Inhalt; so viel Abstand halten, wie tatsächlich übersteht.
+    /// </summary>
+    private void FitMaximized()
+    {
+        var hwnd = new WindowInteropHelper(this).Handle;
+        if (WindowState != WindowState.Maximized || !GetClientRect(hwnd, out var client))
+        {
+            Root.Margin = default;
+            return;
+        }
+
+        var origin = PointToScreen(new Point(0, 0));
+        var work = System.Windows.Forms.Screen.FromHandle(hwnd).WorkingArea;
+        var dpi = VisualTreeHelper.GetDpi(this);
+        Root.Margin = new Thickness(
+            Math.Max(0, work.Left - origin.X) / dpi.DpiScaleX,
+            Math.Max(0, work.Top - origin.Y) / dpi.DpiScaleY,
+            Math.Max(0, origin.X + client.Right - work.Right) / dpi.DpiScaleX,
+            Math.Max(0, origin.Y + client.Bottom - work.Bottom) / dpi.DpiScaleY);
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct Rect32
+    {
+        public int Left, Top, Right, Bottom;
+    }
+
+    [DllImport("user32.dll")]
+    private static extern bool GetClientRect(IntPtr hwnd, out Rect32 rect);
+
+    private void OnMinimizeClick(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
+
+    private void OnMaximizeClick(object sender, RoutedEventArgs e) =>
+        WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+
+    private void OnCloseClick(object sender, RoutedEventArgs e) => Close();
 
     /// <summary>
     /// Im Infobereich auf Software-Rendering umschalten: dann gibt der Grafiktreiber seinen Speicher im
@@ -563,8 +612,6 @@ public partial class MainWindow : Window
 
         HeroImage.Source = featured.Cover ?? ImageCache.Load(featured.HeroPath);
         Ambient.Source = ImageCache.Load(featured.CustomCoverPath ?? featured.HeroPath, ImageCache.GlowWidth) ?? featured.IconWash;
-        // Auf hellem Hintergrund würde ein kräftiger Farbschein Überschrift und Suche grau eintrüben.
-        Ambient.Opacity = FindResource("SolidBackgroundFillColorBaseBrush") is SolidColorBrush { Color.R: > 128 } ? 0.22 : 0.55;
         HeroLogo.Source = ImageCache.Load(featured.LogoPath);
         HeroLogo.Visibility = HeroLogo.Source is null ? Visibility.Collapsed : Visibility.Visible;
         HeroTitle.Visibility = HeroLogo.Source is null ? Visibility.Visible : Visibility.Collapsed;
@@ -671,7 +718,39 @@ public partial class MainWindow : Window
         if (IsLoaded)
         {
             Refresh();
+            ShowPage();
         }
+    }
+
+    /// <summary>Neue Seite oben beginnen und kurz einblenden: eine Animation für die ganze Seite statt einer pro Kachel.</summary>
+    private void ShowPage()
+    {
+        ContentScroll.ScrollToTop();
+        var duration = TimeSpan.FromMilliseconds(220);
+        var ease = (IEasingFunction)FindResource("EaseOut");
+        ContentHost.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, duration) { EasingFunction = ease, FillBehavior = FillBehavior.Stop });
+        ContentShift.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(14, 0, duration) { EasingFunction = ease, FillBehavior = FillBehavior.Stop });
+    }
+
+    // Muss zum rechten Kachelrand im TileButton-Stil und zum negativen Rand der Kachelliste passen.
+    private const double TileGap = 20;
+    private const double TileMinWidth = 200;
+
+    /// <summary>So viele Spalten wie mit Mindestbreite passen, Rest auf die Kacheln verteilt: jede Zeile schließt bündig mit dem Banner ab.</summary>
+    private void OnSectionsSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        // Das Banner wächst mit, damit es auch auf breiten Bildschirmen nicht zum schmalen Streifen wird.
+        Hero.Height = Math.Clamp(e.NewSize.Width * 0.32, 340, 480);
+        var available = e.NewSize.Width + TileGap;
+        var columns = Math.Max(1, (int)(available / (TileMinWidth + TileGap)));
+        var width = Math.Floor(available / columns - TileGap);
+        if (Resources["TileWidth"] is double current && current == width)
+        {
+            return;
+        }
+
+        Resources["TileWidth"] = width;
+        Resources["TileArtHeight"] = Math.Round(width * 9 / 16);
     }
 
     private void OnShowHiddenChanged(object sender, RoutedEventArgs e)

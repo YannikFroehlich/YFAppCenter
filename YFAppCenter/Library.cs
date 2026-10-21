@@ -74,24 +74,59 @@ public sealed class LibraryEntry : INotifyPropertyChanged
         set
         {
             icon = value;
-            IconWash = value is BitmapSource { PixelWidth: > 0, PixelHeight: > 0 } bitmap ? Shrink(bitmap) : null;
+            IconWash = value is BitmapSource { PixelWidth: > 0, PixelHeight: > 0 } bitmap ? Halo(bitmap) : null;
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Icon)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IconWash)));
         }
     }
 
     /// <summary>
-    /// Das Icon auf wenige Pixel verkleinert; groß gezogen ergibt das einen weichen Farbverlauf wie ein
-    /// Weichzeichner, kostet aber keinen Grafikeffekt pro Kachel.
+    /// Lichthof in der kräftigsten Farbe des Icons: ein winziges Bild, das groß gezogen weich zum Rand ausläuft.
+    /// Wirkt wie ein Weichzeichner, kostet aber keinen Grafikeffekt pro Kachel.
     /// </summary>
     [JsonIgnore] public ImageSource? IconWash { get; private set; }
 
-    private static BitmapSource Shrink(BitmapSource bitmap)
+    internal static BitmapSource Halo(BitmapSource icon)
     {
-        const double size = 6;
-        var small = new TransformedBitmap(bitmap, new ScaleTransform(size / bitmap.PixelWidth, size / bitmap.PixelHeight));
-        small.Freeze();
-        return small;
+        const double sample = 16;
+        var small = new FormatConvertedBitmap(
+            new TransformedBitmap(icon, new ScaleTransform(sample / icon.PixelWidth, sample / icon.PixelHeight)),
+            PixelFormats.Bgra32, null, 0);
+        var pixels = new byte[small.PixelWidth * small.PixelHeight * 4];
+        small.CopyPixels(pixels, small.PixelWidth * 4, 0);
+        double red = 0, green = 0, blue = 0, total = 0;
+        for (var index = 0; index < pixels.Length; index += 4)
+        {
+            int b = pixels[index], g = pixels[index + 1], r = pixels[index + 2], a = pixels[index + 3];
+            // Kräftige Farben zählen mehr als Grau, Weiß und Schwarz; durchsichtige Pixel gar nicht.
+            var weight = a / 255.0 * (0.05 + (Math.Max(r, Math.Max(g, b)) - Math.Min(r, Math.Min(g, b))) / 255.0);
+            (red, green, blue, total) = (red + r * weight, green + g * weight, blue + b * weight, total + weight);
+        }
+
+        (red, green, blue) = total > 0 ? (red / total, green / total, blue / total) : (128, 128, 128);
+        // Dunkle Farben aufhellen, sonst verschwindet der Schein auf dem dunklen Hintergrund.
+        var brighten = Math.Max(1, 220 / Math.Max(1, Math.Max(red, Math.Max(green, blue))));
+
+        // Mitte voll deckend, zum Rand hin (weich ausgeglättet) durchsichtig; vormultipliertes Alpha.
+        const int size = 7;
+        var halo = new byte[size * size * 4];
+        for (var y = 0; y < size; y++)
+        {
+            for (var x = 0; x < size; x++)
+            {
+                var falloff = Math.Clamp(1 - Math.Sqrt((x - 3) * (x - 3) + (y - 3) * (y - 3)) / 3, 0, 1);
+                var alpha = falloff * falloff * (3 - 2 * falloff);
+                var index = (y * size + x) * 4;
+                halo[index] = (byte)Math.Min(255, blue * brighten * alpha);
+                halo[index + 1] = (byte)Math.Min(255, green * brighten * alpha);
+                halo[index + 2] = (byte)Math.Min(255, red * brighten * alpha);
+                halo[index + 3] = (byte)(255 * alpha);
+            }
+        }
+
+        var bitmap = BitmapSource.Create(size, size, 96, 96, PixelFormats.Pbgra32, null, halo, size * 4);
+        bitmap.Freeze();
+        return bitmap;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -755,7 +790,8 @@ public static class ImageCache
 
 public static class IconLoader
 {
-    // Icons erscheinen mit höchstens 68 px; 128 px bleiben auch bei 200 % Skalierung scharf und brauchen ein Viertel von 256 px.
+    // Icons erscheinen in Kacheln mit 60 px und im Banner ohne Bild mit 112 px; 128 px bleiben in Kacheln auch bei
+    // 200 % Skalierung scharf und brauchen ein Viertel von 256 px.
     private const int IconSize = 128;
 
     // Nur vom UI-Thread benutzt.
