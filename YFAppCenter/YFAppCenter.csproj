@@ -12,7 +12,9 @@
     <!-- ThemeMode (Fluent-Design) ist in WPF noch als experimentell markiert. -->
     <NoWarn>$(NoWarn);WPF0001</NoWarn>
     <Product>YF AppCenter</Product>
-    <Version>0.3.0</Version>
+    <!-- Basis für Releases: jeder Push auf main zählt die letzte Stelle des neuesten Tags hoch. Für einen größeren
+         Sprung hier die neue Version eintragen (etwa 0.5.0); ist sie höher als der letzte Tag, wird sie genommen. -->
+    <Version>0.4.0</Version>
     <StartupObject>YFAppCenter.Program</StartupObject>
   </PropertyGroup>
   <ItemGroup>

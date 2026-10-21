@@ -1,0 +1,39 @@
+# Jeder Push auf main, auch ein Merge, wird als neue Version veröffentlicht; installierte Apps holen sie sich über
+# ihre automatischen Updates. Versionsnummer und Ablauf stehen in scripts/New-Release.ps1.
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+# Nacheinander statt gleichzeitig, sonst ziehen zwei schnelle Pushes dieselbe Versionsnummer.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          # Alle Tags, damit das Skript die nächste Versionsnummer findet.
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Install vpk
+        run: |
+          dotnet tool install --global vpk --version 1.2.0
+          "$env:USERPROFILE\.dotnet\tools" >> $env:GITHUB_PATH
+
+      - name: Build and publish release
+        run: ./scripts/New-Release.ps1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

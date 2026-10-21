@@ -2,14 +2,15 @@
 .SYNOPSIS
     Baut YF AppCenter, packt es mit Velopack und veröffentlicht es als GitHub-Release.
     Installierte Versionen finden das Release automatisch und aktualisieren sich.
+    Veröffentlicht wird bei jedem Push auf main über GitHub Actions (.github/workflows/release.yml).
+.DESCRIPTION
+    Ohne -Version nimmt das Skript den neuesten Tag vX.Y.Z und zählt die letzte Stelle hoch. Für einen größeren
+    Sprung (etwa 0.5.0) die Version in YFAppCenter\YFAppCenter.csproj eintragen; ist sie höher, wird sie genommen.
 .EXAMPLE
-    .\scripts\New-Release.ps1 -Version 0.3.0
-.EXAMPLE
-    .\scripts\New-Release.ps1 -Version 0.3.0 -NoUpload   # nur lokal packen, nichts veröffentlichen
+    .\scripts\New-Release.ps1 -NoUpload   # lokal Setup und Pakete der nächsten Version bauen, nichts veröffentlichen
 #>
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory)]
     [ValidatePattern('^\d+\.\d+\.\d+$')]
     [string]$Version,
     [switch]$NoUpload
@@ -18,7 +19,6 @@ param(
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
 $repoUrl = 'https://github.com/YannikFroehlich/YFAppCenter'
-$publishDir = Join-Path $root "artifacts\publish\$Version"
 $outputDir = Join-Path $root 'artifacts\velopack'
 
 function Invoke-Checked([string]$Exe, [string[]]$Arguments) {
@@ -28,9 +28,23 @@ function Invoke-Checked([string]$Exe, [string[]]$Arguments) {
     }
 }
 
-if (-not $NoUpload -and (git -C $root status --porcelain)) {
-    throw 'Es gibt nicht committete Änderungen. Erst committen, dann veröffentlichen.'
+# Veröffentlicht wird nur aus GitHub Actions; ein lokales Release käme zu dem des Pushs noch hinzu.
+if (-not $NoUpload -and -not $env:GITHUB_ACTIONS) {
+    throw 'Releases entstehen automatisch bei jedem Push auf main. Lokal nur mit -NoUpload bauen.'
 }
+
+if (-not $Version) {
+    $last = git -C $root tag --list 'v*' |
+        Where-Object { $_ -match '^v\d+\.\d+\.\d+$' } |
+        ForEach-Object { [version]$_.Substring(1) } |
+        Sort-Object -Descending |
+        Select-Object -First 1
+    $base = [version](Select-Xml -Path (Join-Path $root 'YFAppCenter\YFAppCenter.csproj') -XPath '//Version').Node.InnerText
+    $Version = if (-not $last -or $base -gt $last) { $base.ToString(3) } else { '{0}.{1}.{2}' -f $last.Major, $last.Minor, ($last.Build + 1) }
+}
+
+Write-Host "Version $Version"
+$publishDir = Join-Path $root "artifacts\publish\$Version"
 
 # Spielerkennung aus YFTimeTracker; fehlt nach einem Klon ohne --recursive.
 Invoke-Checked git @('-C', $root, 'submodule', 'update', '--init')
@@ -40,9 +54,8 @@ Invoke-Checked dotnet @(
     '-c', 'Release', '-r', 'win-x64', '--self-contained', 'false',
     "-p:Version=$Version", '-o', $publishDir)
 
-$token = $null
+$token = $env:GITHUB_TOKEN
 if (-not $NoUpload) {
-    $token = (gh auth token).Trim()
     # Vorherige Version laden, damit vpk kleine Delta-Updates bauen kann. Beim ersten Release gibt es keine.
     & vpk download github --repoUrl $repoUrl --token $token --outputDir $outputDir
 }
@@ -79,7 +92,6 @@ if ($NoUpload) {
     return
 }
 
-Invoke-Checked git @('-C', $root, 'push', 'origin', 'HEAD')
 Invoke-Checked vpk @(
     'upload', 'github',
     '--repoUrl', $repoUrl,
