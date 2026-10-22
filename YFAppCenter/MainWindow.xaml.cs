@@ -1,4 +1,5 @@
-﻿using System.Diagnostics;
+﻿using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
@@ -23,6 +24,7 @@ public partial class MainWindow : Window
     private LibraryEntry? featured;
     private HashSet<string> runningIds = [];
     private bool checkingRunning;
+    private bool rescanOnActivate;
     private readonly System.Windows.Threading.DispatcherTimer runningTimer = new() { Interval = TimeSpan.FromSeconds(5) };
 
     public MainWindow()
@@ -54,10 +56,15 @@ public partial class MainWindow : Window
         // Laufende Programme und Controller nur prüfen, solange das Fenster im Vordergrund ist.
         runningTimer.Tick += async (_, _) => await UpdateRunningAsync();
         padTimer.Tick += (_, _) => PollGamepad();
-        Activated += (_, _) =>
+        Activated += async (_, _) =>
         {
             runningTimer.Start();
             padTimer.Start();
+            if (rescanOnActivate)
+            {
+                rescanOnActivate = false;
+                await RescanAsync();
+            }
         };
         Deactivated += (_, _) =>
         {
@@ -1000,7 +1007,42 @@ public partial class MainWindow : Window
                 entry.Hidden = !entry.Hidden;
                 SaveAndRefresh();
             });
+            Add("Deinstallieren …", async () => await UninstallAsync(entry));
         }
+    }
+
+    private async Task UninstallAsync(LibraryEntry entry)
+    {
+        if (MessageBox.Show(this, $"„{entry.DisplayName}“ deinstallieren?", Title,
+                MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        try
+        {
+            if (!await Uninstaller.StartAsync(entry))
+            {
+                MessageBox.Show(this, $"Für „{entry.DisplayName}“ gibt es kein Deinstallationsprogramm. Bitte über {entry.Subtitle} deinstallieren.",
+                    Title, MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+        }
+        catch (Win32Exception exception) when (exception.NativeErrorCode == 1223)
+        {
+            // Nachfrage der Benutzerkontensteuerung abgelehnt.
+            return;
+        }
+        catch (Exception exception)
+        {
+            MessageBox.Show(this, $"„{entry.DisplayName}“ konnte nicht deinstalliert werden.\n\n{exception.Message}",
+                Title, MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        // Launcher und Deinstallationsprogramme arbeiten in eigenen Fenstern weiter; zurück in der App neu suchen.
+        rescanOnActivate = true;
+        await RescanAsync();
     }
 
     private void ChangeCover(LibraryEntry entry)

@@ -520,6 +520,21 @@ public static class GameScanner
     private static Dictionary<string, string> ReadUninstallIcons()
     {
         var icons = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (location, displayIcon, _) in ReadUninstallEntries())
+        {
+            // Format: "C:\Pfad\Spiel.exe",0
+            if (displayIcon?.Split(',')[0].Trim().Trim('"') is { Length: > 0 } icon && File.Exists(icon))
+            {
+                icons.TryAdd(location, icon);
+            }
+        }
+
+        return icons;
+    }
+
+    /// <summary>Windows-Deinstallationseinträge mit Installationsordner, Icon und Deinstallationsbefehl.</summary>
+    internal static IEnumerable<(string Location, string? Icon, string? Command)> ReadUninstallEntries()
+    {
         foreach (var hive in new[] { RegistryHive.LocalMachine, RegistryHive.CurrentUser })
         {
             foreach (var view in new[] { RegistryView.Registry64, RegistryView.Registry32 })
@@ -529,23 +544,14 @@ public static class GameScanner
                 foreach (var name in uninstall?.GetSubKeyNames() ?? [])
                 {
                     using var entry = uninstall!.OpenSubKey(name);
-                    if (entry?.GetValue("InstallLocation") is not string { Length: > 0 } location
-                        || entry.GetValue("DisplayIcon") is not string { Length: > 0 } icon)
+                    if (entry?.GetValue("InstallLocation") is string { Length: > 0 } location)
                     {
-                        continue;
-                    }
-
-                    // Format: "C:\Pfad\Spiel.exe",0
-                    icon = icon.Split(',')[0].Trim().Trim('"');
-                    if (File.Exists(icon))
-                    {
-                        icons.TryAdd(Path.TrimEndingDirectorySeparator(location.Trim().Trim('"')), icon);
+                        yield return (Path.TrimEndingDirectorySeparator(location.Trim().Trim('"')),
+                            entry.GetValue("DisplayIcon") as string, entry.GetValue("UninstallString") as string);
                     }
                 }
             }
         }
-
-        return icons;
     }
 
     /// <summary>YFTimeTracker kennt nur die CatalogItemId, die Epic-Start-URI braucht den AppName.</summary>
@@ -608,6 +614,68 @@ public static class GameScanner
         {
             return (null, null);
         }
+    }
+}
+
+public static class Uninstaller
+{
+    /// <summary>
+    /// Startet die Deinstallation eines erkannten Spiels über seinen Launcher oder sein Deinstallationsprogramm.
+    /// Liefert false, wenn es keinen Weg dafür gibt (etwa bei Epic Games, das nur selbst deinstalliert).
+    /// </summary>
+    public static async Task<bool> StartAsync(LibraryEntry entry)
+    {
+        var id = entry.Id[(entry.Id.IndexOf(':') + 1)..];
+        switch (entry.Id.Split(':')[0])
+        {
+            case "Steam":
+                Library.Launch($"steam://uninstall/{id}");
+                return true;
+            case "Ubisoft":
+                Library.Launch($"uplay://uninstall/{id}");
+                return true;
+            case "Xbox":
+                var manager = new PackageManager();
+                if (manager.FindPackagesForUser(string.Empty, id).FirstOrDefault() is not { } package)
+                {
+                    return false;
+                }
+
+                await manager.RemovePackageAsync(package.Id.FullName).AsTask();
+                return true;
+        }
+
+        if (entry.InstallDirectory is null)
+        {
+            return false;
+        }
+
+        var directory = Path.TrimEndingDirectorySeparator(entry.InstallDirectory);
+        var command = await Task.Run(() => GameScanner.ReadUninstallEntries()
+            .FirstOrDefault(uninstall => uninstall.Command is { Length: > 0 }
+                && string.Equals(uninstall.Location, directory, StringComparison.OrdinalIgnoreCase)).Command);
+        if (command is null)
+        {
+            return false;
+        }
+
+        var (file, arguments) = SplitCommand(command);
+        Process.Start(new ProcessStartInfo(file, arguments) { UseShellExecute = true })?.Dispose();
+        return true;
+    }
+
+    /// <summary>Teilt einen Befehl aus der Registry in Programm und Argumente; dort steht der Pfad nicht immer in Anführungszeichen.</summary>
+    internal static (string File, string Arguments) SplitCommand(string command)
+    {
+        command = command.Trim();
+        if (command.StartsWith('"'))
+        {
+            var close = command.IndexOf('"', 1);
+            return close < 0 ? (command.Trim('"'), "") : (command[1..close], command[(close + 1)..].Trim());
+        }
+
+        var end = command.IndexOf(".exe", StringComparison.OrdinalIgnoreCase) + ".exe".Length;
+        return end < ".exe".Length ? (command, "") : (command[..end], command[end..].Trim());
     }
 }
 

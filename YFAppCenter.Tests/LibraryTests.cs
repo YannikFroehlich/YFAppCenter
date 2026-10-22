@@ -103,6 +103,17 @@ public sealed class LibraryTests
     }
 
     [TestMethod]
+    public void SplitCommand_separates_quoted_and_unquoted_programs_from_arguments()
+    {
+        Assert.AreEqual((@"C:\ProgramData\Battle.net\Agent\Blizzard Uninstaller.exe", @"--uid=wow --displayname=""World of Warcraft"""),
+            Uninstaller.SplitCommand(@"""C:\ProgramData\Battle.net\Agent\Blizzard Uninstaller.exe"" --uid=wow --displayname=""World of Warcraft"""));
+        Assert.AreEqual((@"D:\GOG Games\Witcher 3\unins000.exe", ""), Uninstaller.SplitCommand(@"""D:\GOG Games\Witcher 3\unins000.exe"""));
+        Assert.AreEqual((@"C:\Program Files\Game\Uninstall.EXE", "/S"), Uninstaller.SplitCommand(@" C:\Program Files\Game\Uninstall.EXE /S"));
+        Assert.AreEqual(("MsiExec.exe", "/X{1234}"), Uninstaller.SplitCommand("MsiExec.exe /X{1234}"));
+        Assert.AreEqual(("uplay://uninstall/635", ""), Uninstaller.SplitCommand("uplay://uninstall/635"));
+    }
+
+    [TestMethod]
     public void FindMainExecutable_prefers_shallow_non_helper_executables()
     {
         var root = Directory.CreateTempSubdirectory().FullName;
