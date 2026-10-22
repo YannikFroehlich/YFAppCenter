@@ -20,7 +20,7 @@
   <ItemGroup>
     <!-- Spielerkennung kommt direkt aus YFTimeTracker (Git-Submodul), damit beide Programme dieselben Spiele finden. -->
     <ProjectReference Include="..\external\YFTimeTracker\YFTimeTracker.Windows\YFTimeTracker.Windows.csproj" />
-    <PackageReference Include="Velopack" Version="1.2.0" />
+    <PackageReference Include="Velopack" Version="1.2.161" />
     <Resource Include="AppCenter.ico" />
     <InternalsVisibleTo Include="YFAppCenter.Tests" />
     <!-- Sonst kollidieren WinForms-Typen (Button, MessageBox …) mit denen von WPF. -->
