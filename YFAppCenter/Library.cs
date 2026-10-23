@@ -8,6 +8,7 @@ using System.Text.RegularExpressions;
 using System.Text.Json.Serialization;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Win32;
 using Windows.Management.Deployment;
@@ -16,12 +17,14 @@ using Windows.Storage.FileProperties;
 using YFTimeTracker.Core.Models;
 using YFTimeTracker.Core.Services;
 using YFTimeTracker.Windows.Processes;
+using YFTimeTracker.Windows.SystemInfo;
 
 namespace YFAppCenter;
 
 public sealed class LibraryEntry : INotifyPropertyChanged
 {
     private ImageSource? icon;
+    private TimeSpan? playtime;
 
     /// <summary>"Steam:123" für erkannte Spiele, "manual:…" für selbst hinzugefügte Einträge.</summary>
     public required string Id { get; init; }
@@ -56,8 +59,20 @@ public sealed class LibraryEntry : INotifyPropertyChanged
     [JsonIgnore] public ImageSource? Cover => ImageCache.Load(CustomCoverPath);
     [JsonIgnore] public ImageSource? TileArt => ImageCache.Load(CustomCoverPath ?? HeaderPath, ImageCache.TileWidth);
 
+    /// <summary>Gesamte Spielzeit laut YFTimeTracker; null ohne Tracker oder wenn das Spiel dort nicht vorkommt.</summary>
     [JsonIgnore]
-    public string Subtitle => IsManual ? (IsGame ? "Spiel" : "Programm") : Id.Split(':')[0] switch
+    public TimeSpan? Playtime
+    {
+        get => playtime;
+        set
+        {
+            playtime = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Subtitle)));
+        }
+    }
+
+    [JsonIgnore]
+    public string SourceName => IsManual ? (IsGame ? "Spiel" : "Programm") : Id.Split(':')[0] switch
     {
         "Epic" => "Epic Games",
         "Gog" => "GOG",
@@ -65,6 +80,14 @@ public sealed class LibraryEntry : INotifyPropertyChanged
         "Ubisoft" => "Ubisoft Connect",
         "EaApp" => "EA app",
         var source => source
+    };
+
+    [JsonIgnore]
+    public string Subtitle => Playtime switch
+    {
+        null => SourceName,
+        { TotalHours: < 1 } time => $"{SourceName} · {(int)time.TotalMinutes} Min.",
+        var time => $"{SourceName} · {time.Value.TotalHours:0.#} Std."
     };
 
     [JsonIgnore]
@@ -312,25 +335,63 @@ public static class RunningDetector
         return entries.Where(entry => IsRunning(entry, processKeys)).Select(entry => entry.Id).ToHashSet();
     }
 
+    internal static bool IsRunning(LibraryEntry entry, IReadOnlyList<string> processKeys) => processKeys.Any(BelongsTo(entry));
+
+    /// <summary>
+    /// Beendet alle Prozesse, an denen der Eintrag als laufend erkannt wird. Liefert false, wenn einer davon
+    /// sich nicht beenden ließ (etwa weil er mit Administratorrechten läuft).
+    /// </summary>
+    public static async Task<bool> StopAsync(LibraryEntry entry)
+    {
+        var belongs = BelongsTo(entry);
+        var processes = await Task.Run(() => Processes.GetRunningProcessesAsync(CancellationToken.None));
+        return await Task.Run(() =>
+        {
+            var stoppedAll = true;
+            foreach (var running in processes.Where(process => belongs(process.ExecutablePathKey)))
+            {
+                // Die Prozessliste kennt nur Pfade; gleichnamige Prozesse anderer Ordner bleiben verschont.
+                foreach (var process in Process.GetProcessesByName(Path.GetFileNameWithoutExtension(running.ExecutablePath)))
+                {
+                    using (process)
+                    {
+                        try
+                        {
+                            if (Key(process.MainModule?.FileName) == running.ExecutablePathKey)
+                            {
+                                process.Kill();
+                                // Sonst zählt der Prozess beim gleich folgenden Abgleich noch als laufend.
+                                process.WaitForExit(TimeSpan.FromSeconds(3));
+                            }
+                        }
+                        catch (InvalidOperationException)
+                        {
+                            // Inzwischen von selbst beendet.
+                        }
+                        catch (Win32Exception)
+                        {
+                            // Kein Zugriff, etwa bei Prozessen mit Administratorrechten.
+                            stoppedAll = false;
+                        }
+                    }
+                }
+            }
+
+            return stoppedAll;
+        });
+    }
+
     // ponytail: eigene Einträge zählen nur bei genau derselben .exe. Programme, die über einen Starter
     // laufen (etwa Discords Update.exe), werden nicht erkannt; bei Bedarf Startziel auf die echte .exe setzen.
-    internal static bool IsRunning(LibraryEntry entry, IReadOnlyList<string> processKeys)
+    private static Func<string, bool> BelongsTo(LibraryEntry entry)
     {
-        if (Key(entry.InstallDirectory) is { } directory)
-        {
-            var prefix = directory + Path.DirectorySeparatorChar;
-            if (processKeys.Any(key => key.StartsWith(prefix, StringComparison.Ordinal)))
-            {
-                return true;
-            }
-        }
-
+        var prefix = Key(entry.InstallDirectory) is { } directory ? directory + Path.DirectorySeparatorChar : null;
         var executables = new[] { entry.CustomTarget, entry.Target, entry.CustomIconPath, entry.IconPath }
             .Where(path => path?.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) == true)
             .Select(Key)
             .OfType<string>()
             .ToHashSet();
-        return processKeys.Any(executables.Contains);
+        return key => (prefix is not null && key.StartsWith(prefix, StringComparison.Ordinal)) || executables.Contains(key);
     }
 
     private static string? Key(string? path)
@@ -614,6 +675,52 @@ public static class GameScanner
         {
             return (null, null);
         }
+    }
+}
+
+/// <summary>Liest die Spielzeit aus der Datenbank von YFTimeTracker, falls der installiert ist. Schreibt nie hinein.</summary>
+public static class PlaytimeReader
+{
+    public static readonly string DatabasePath = new WindowsAppPathProvider().DatabasePath;
+
+    /// <summary>
+    /// "Steam:123" → Spielzeit, gezählt wie in YFTimeTracker: Basis-Spielzeit plus Sitzungen, laufende bis jetzt.
+    /// Beide Programme erkennen Spiele mit demselben Code, daher passen die Kennungen zusammen.
+    /// </summary>
+    public static Dictionary<string, TimeSpan> Read(string databasePath, DateTimeOffset now)
+    {
+        var playtime = new Dictionary<string, TimeSpan>();
+        if (!File.Exists(databasePath))
+        {
+            return playtime;
+        }
+
+        // Ohne Pooling bleibt die Datei nicht offen, während der Tracker hineinschreibt.
+        using var connection = new SqliteConnection(new SqliteConnectionStringBuilder
+        {
+            DataSource = databasePath, Mode = SqliteOpenMode.ReadOnly, Pooling = false
+        }.ToString());
+        connection.Open();
+        using var command = connection.CreateCommand();
+        // Zeitpunkte stehen dort als UTC-Ticks; Sitzungen ohne gespeicherte Dauer laufen noch oder wurden nicht sauber beendet.
+        command.CommandText = """
+            SELECT g.Source, g.ExternalGameId, COALESCE(g.BaselinePlaytimeMinutes, 0) * 60 + COALESCE((
+                SELECT SUM(COALESCE(s.DurationSeconds, MAX(0, (COALESCE(s.EndedAtUtc, $now) - s.StartedAtUtc) / 10000000)))
+                FROM GameSessions s WHERE s.GameId = g.Id), 0)
+            FROM Games g
+            WHERE g.ExternalGameId IS NOT NULL
+            """;
+        command.Parameters.AddWithValue("$now", now.UtcTicks);
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            if (reader.GetInt64(2) >= 60)
+            {
+                playtime[$"{(GameSource)reader.GetInt32(0)}:{reader.GetString(1)}"] = TimeSpan.FromSeconds(reader.GetInt64(2));
+            }
+        }
+
+        return playtime;
     }
 }
 

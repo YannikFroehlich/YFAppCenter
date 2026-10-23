@@ -65,6 +65,11 @@ public partial class MainWindow : Window
                 rescanOnActivate = false;
                 await RescanAsync();
             }
+            else
+            {
+                // Zurück nach dem Spielen: die gerade gemessene Zeit zeigen.
+                await UpdatePlaytimeAsync();
+            }
         };
         Deactivated += (_, _) =>
         {
@@ -465,9 +470,39 @@ public partial class MainWindow : Window
         }
 
         Refresh();
+        await UpdatePlaytimeAsync();
         if (await StoreArt.FetchMissingAsync(library))
         {
             SaveAndRefresh();
+        }
+    }
+
+    /// <summary>Übernimmt die Spielzeit aus YFTimeTracker; ohne Tracker bleibt sie leer.</summary>
+    private async Task UpdatePlaytimeAsync()
+    {
+        Dictionary<string, TimeSpan> playtime;
+        try
+        {
+            playtime = await Task.Run(() => PlaytimeReader.Read(PlaytimeReader.DatabasePath, DateTimeOffset.UtcNow));
+        }
+        catch (Exception exception) when (exception is Microsoft.Data.Sqlite.SqliteException or IOException)
+        {
+            // Datenbank gesperrt oder von einer anderen Tracker-Version: beim nächsten Mal erneut versuchen.
+            return;
+        }
+
+        var changed = false;
+        foreach (var entry in library)
+        {
+            TimeSpan? time = playtime.TryGetValue(entry.Id, out var value) ? value : null;
+            changed |= entry.Playtime != time;
+            entry.Playtime = time;
+        }
+
+        // Neu aufbauen, damit „Meistgespielt“ die neue Reihenfolge zeigt.
+        if (changed)
+        {
+            Refresh();
         }
     }
 
@@ -545,6 +580,8 @@ public partial class MainWindow : Window
             [
                 new("Läuft gerade", byName.Where(entry => entry.IsRunning).ToList()),
                 new("Zuletzt gestartet", recent.Take(HomeRecentCount).ToList()),
+                new("Meistgespielt", matches.Where(entry => entry.Playtime is not null).OrderByDescending(entry => entry.Playtime)
+                    .Take(HomeRecentCount).ToList()),
                 new("Favoriten", byName.Where(entry => entry.Favorite).ToList()),
                 .. categories.Select(category => new Section(category.Name, byName.Where(entry => entry.Category == category.Name).ToList())),
                 // Einträge mit Kategorie stehen schon in ihrem eigenen Bereich.
@@ -918,6 +955,11 @@ public partial class MainWindow : Window
         }
 
         Add("Starten", () => Launch(entry));
+        if (entry.IsRunning)
+        {
+            Add("Beenden …", async () => await StopAsync(entry));
+        }
+
         Add(entry.Favorite ? "Aus Favoriten entfernen" : "Zu Favoriten hinzufügen", () =>
         {
             entry.Favorite = !entry.Favorite;
@@ -1011,6 +1053,23 @@ public partial class MainWindow : Window
         }
     }
 
+    private async Task StopAsync(LibraryEntry entry)
+    {
+        if (MessageBox.Show(this, $"„{entry.DisplayName}“ beenden? Nicht gespeicherter Fortschritt geht verloren.", Title,
+                MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        if (!await RunningDetector.StopAsync(entry))
+        {
+            MessageBox.Show(this, $"„{entry.DisplayName}“ ließ sich nicht ganz beenden, vermutlich läuft es mit Administratorrechten.",
+                Title, MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+
+        await UpdateRunningAsync();
+    }
+
     private async Task UninstallAsync(LibraryEntry entry)
     {
         if (MessageBox.Show(this, $"„{entry.DisplayName}“ deinstallieren?", Title,
@@ -1023,7 +1082,7 @@ public partial class MainWindow : Window
         {
             if (!await Uninstaller.StartAsync(entry))
             {
-                MessageBox.Show(this, $"Für „{entry.DisplayName}“ gibt es kein Deinstallationsprogramm. Bitte über {entry.Subtitle} deinstallieren.",
+                MessageBox.Show(this, $"Für „{entry.DisplayName}“ gibt es kein Deinstallationsprogramm. Bitte über {entry.SourceName} deinstallieren.",
                     Title, MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }

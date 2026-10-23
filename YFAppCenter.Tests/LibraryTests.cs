@@ -65,6 +65,35 @@ public sealed class LibraryTests
     }
 
     [TestMethod]
+    public async Task StopAsync_ends_processes_inside_the_install_directory_only()
+    {
+        var root = Directory.CreateTempSubdirectory().FullName;
+        var game = Path.Combine(root, "Game", "ping.exe");
+        var neighbour = Path.Combine(root, "Other", "ping.exe");
+        Directory.CreateDirectory(Path.GetDirectoryName(game)!);
+        Directory.CreateDirectory(Path.GetDirectoryName(neighbour)!);
+        File.Copy(Path.Combine(Environment.SystemDirectory, "PING.EXE"), game);
+        File.Copy(Path.Combine(Environment.SystemDirectory, "PING.EXE"), neighbour);
+        using var gameProcess = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(game, "-n 60 127.0.0.1") { CreateNoWindow = true })!;
+        using var otherProcess = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(neighbour, "-n 60 127.0.0.1") { CreateNoWindow = true })!;
+        try
+        {
+            var entry = new LibraryEntry { Id = "Steam:1", Name = "Game", Target = "steam://rungameid/1", InstallDirectory = Path.GetDirectoryName(game) };
+
+            Assert.IsTrue(await RunningDetector.StopAsync(entry));
+            Assert.IsTrue(gameProcess.HasExited);
+            Assert.IsFalse(otherProcess.HasExited, "Gleichnamiger Prozess in einem anderen Ordner läuft weiter.");
+        }
+        finally
+        {
+            gameProcess.Kill();
+            otherProcess.Kill();
+            otherProcess.WaitForExit();
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [TestMethod]
     public void CreateManual_copies_shortcut_and_takes_icon_from_its_target()
     {
         var notepad = Path.Combine(Environment.SystemDirectory, "notepad.exe");
@@ -100,6 +129,43 @@ public sealed class LibraryTests
         Assert.IsNull(StoreArt.MatchAppId("Forza Horizon 6", [("Forza Horizon 5", 7)]));
         Assert.IsNull(StoreArt.MatchAppId("Minecraft Launcher", [("Minecraft Dungeons", 8)]));
         Assert.IsNull(StoreArt.MatchAppId("VALORANT", []));
+    }
+
+    [TestMethod]
+    public void PlaytimeReader_adds_baseline_stored_and_running_sessions_like_the_tracker()
+    {
+        var database = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.db");
+        var now = new DateTimeOffset(2026, 10, 23, 12, 0, 0, TimeSpan.Zero);
+        long Ticks(int minutesAgo) => now.AddMinutes(-minutesAgo).UtcTicks;
+        try
+        {
+            using (var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={database};Pooling=False"))
+            {
+                connection.Open();
+                using var command = connection.CreateCommand();
+                command.CommandText = $"""
+                    CREATE TABLE Games (Id INTEGER PRIMARY KEY, Source INTEGER, ExternalGameId TEXT, BaselinePlaytimeMinutes INTEGER);
+                    CREATE TABLE GameSessions (Id INTEGER PRIMARY KEY, GameId INTEGER, StartedAtUtc INTEGER, EndedAtUtc INTEGER, DurationSeconds INTEGER);
+                    INSERT INTO Games VALUES (1, 1, '570', 60), (2, 2, 'abc', NULL), (3, 0, NULL, 600), (4, 3, 'short', NULL);
+                    INSERT INTO GameSessions VALUES
+                        (1, 1, {Ticks(200)}, {Ticks(170)}, 1800),
+                        (2, 1, {Ticks(10)}, NULL, NULL),
+                        (3, 2, {Ticks(5)}, {Ticks(3)}, NULL),
+                        (4, 4, {Ticks(1)}, {Ticks(0)}, 30);
+                    """;
+                command.ExecuteNonQuery();
+            }
+
+            var playtime = PlaytimeReader.Read(database, now);
+
+            Assert.AreEqual(TimeSpan.FromMinutes(60 + 30 + 10), playtime["Steam:570"], "Basis, gespeicherte und laufende Sitzung.");
+            Assert.AreEqual(TimeSpan.FromMinutes(2), playtime["Epic:abc"], "Beendete Sitzung ohne gespeicherte Dauer.");
+            Assert.AreEqual(2, playtime.Count, "Ohne Kennung kein Treffer, unter einer Minute nichts anzeigen.");
+        }
+        finally
+        {
+            File.Delete(database);
+        }
     }
 
     [TestMethod]
