@@ -5,6 +5,10 @@ name: Release
 on:
   push:
     branches: [main]
+    # Ändert ein Push nur diese Dateien, bleibt die App gleich; kein Release, das Nutzern ein leeres Update meldet.
+    paths-ignore:
+      - '**.md'
+      - 'YFAppCenter.Tests/**'
 
 # Nacheinander statt gleichzeitig, sonst ziehen zwei schnelle Pushes dieselbe Versionsnummer.
 concurrency:
