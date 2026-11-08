@@ -16,7 +16,14 @@ namespace YFAppCenter;
 public partial class MainWindow : Window
 {
     private const int RecentCount = 20;
-    private const int HomeRecentCount = 6;
+
+    private readonly AppSettings settings = AppSettings.Load();
+    private readonly System.Windows.Shell.WindowChrome windowFrame;
+    private WindowState stateBeforeFullscreen = WindowState.Normal;
+    private bool fullscreen;
+
+    // Kacheln pro Zeile; „Zuletzt gestartet“ und „Meistgespielt“ bleiben auf der Startseite eine einzige Reihe.
+    private int homeColumns = 4;
 
     private List<LibraryEntry> library = Library.Load();
     private List<LibraryEntry> visible = [];
@@ -30,12 +37,22 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        // Kachelbilder in der tatsächlich benötigten Auflösung laden (Kachel 216 px plus Reserve fürs Zuschneiden).
-        ImageCache.TileWidth = (int)(280 * VisualTreeHelper.GetDpi(this).DpiScaleX);
+        windowFrame = System.Windows.Shell.WindowChrome.GetWindowChrome(this);
+        // Kachelbilder in der tatsächlich benötigten Auflösung laden (auf großen Bildschirmen bis gut 300 px breit).
+        ImageCache.TileWidth = (int)(340 * VisualTreeHelper.GetDpi(this).DpiScaleX);
         AutostartBox.IsChecked = Autostart.IsEnabled;
+        StartFullscreenBox.IsChecked = settings.StartFullscreen;
+        FullscreenAtLogonBox.IsChecked = settings.FullscreenAtLogon;
+        FullscreenAtLogonBox.IsEnabled = Autostart.IsEnabled;
         SetUpTray();
         IsVisibleChanged += OnVisibilityChanged;
-        if (Environment.GetCommandLineArgs().Contains(Autostart.MinimizedArgument))
+        var atLogon = Environment.GetCommandLineArgs().Contains(Autostart.MinimizedArgument);
+        if (settings.OpensFullscreen(atLogon))
+        {
+            SetFullscreen(true);
+        }
+
+        if (settings.StaysInTray(atLogon))
         {
             WindowState = WindowState.Minimized;
             // Beim ersten Anzeigen meldet WPF keinen Zustandswechsel, daher hier selbst in den Infobereich.
@@ -177,7 +194,8 @@ public partial class MainWindow : Window
     private void FitMaximized()
     {
         var hwnd = new WindowInteropHelper(this).Handle;
-        if (WindowState != WindowState.Maximized || !GetClientRect(hwnd, out var client))
+        // Im Vollbild gibt es keinen Rahmen; die Taskleiste würde hier sonst als Überstand zählen.
+        if (fullscreen || WindowState != WindowState.Maximized || !GetClientRect(hwnd, out var client))
         {
             Root.Margin = default;
             return;
@@ -209,6 +227,56 @@ public partial class MainWindow : Window
 
     private void OnCloseClick(object sender, RoutedEventArgs e) => Close();
 
+    private void OnFullscreenClick(object sender, RoutedEventArgs e) => SetFullscreen(!fullscreen);
+
+    /// <summary>
+    /// Echtes Vollbild über der Taskleiste: nur ein maximiertes Fenster ohne Rahmen deckt sie ab. Dafür muss die
+    /// eigene Titelleiste (WindowChrome) weichen; die Knöpfe im Fenster bleiben.
+    /// </summary>
+    private void SetFullscreen(bool on)
+    {
+        if (on == fullscreen)
+        {
+            return;
+        }
+
+        if (on)
+        {
+            stateBeforeFullscreen = WindowState;
+        }
+
+        fullscreen = on;
+        // Windows berechnet die Größe nur beim Wechsel neu; ein schon maximiertes Fenster bliebe sonst über der Taskleiste stehen.
+        WindowState = WindowState.Normal;
+        System.Windows.Shell.WindowChrome.SetWindowChrome(this, on ? null : windowFrame);
+        WindowStyle = on ? WindowStyle.None : WindowStyle.SingleBorderWindow;
+        ResizeMode = on ? ResizeMode.NoResize : ResizeMode.CanResize;
+        WindowState = on ? WindowState.Maximized : stateBeforeFullscreen;
+        FullscreenGlyph.Text = on ? "" : "";
+        FullscreenButton.ToolTip = on ? "Vollbild beenden (F11)" : "Vollbild (F11)";
+        MaximizeButton.Visibility = on ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    protected override void OnPreviewKeyDown(KeyEventArgs e)
+    {
+        base.OnPreviewKeyDown(e);
+        if (e.Key == Key.F11)
+        {
+            SetFullscreen(!fullscreen);
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape && dialogFrame is not null)
+        {
+            CloseDialog(false);
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Enter && dialogFrame is not null && DialogInput.IsKeyboardFocused)
+        {
+            CloseDialog(true);
+            e.Handled = true;
+        }
+    }
+
     /// <summary>
     /// Im Infobereich auf Software-Rendering umschalten: dann gibt der Grafiktreiber seinen Speicher im
     /// App-Prozess frei (gemessen gut 200 MB). Sichtbar wieder per Grafikkarte, damit Scrollen flüssig bleibt.
@@ -228,6 +296,11 @@ public partial class MainWindow : Window
         {
             // Stellt auch ein vorher maximiertes Fenster wieder maximiert her.
             SystemCommands.RestoreWindow(this);
+            if (fullscreen)
+            {
+                // Nach dem Autostart war das Fenster noch nie sichtbar, Windows kennt also nur die normale Größe.
+                WindowState = WindowState.Maximized;
+            }
         }
 
         Activate();
@@ -269,6 +342,11 @@ public partial class MainWindow : Window
 
     private void HandlePadAction(PadAction action)
     {
+        if (dialogFrame is not null && action is PadAction.Favorite or PadAction.Menu or PadAction.PreviousSection or PadAction.NextSection)
+        {
+            return;
+        }
+
         var focused = Keyboard.FocusedElement as FrameworkElement;
         var openMenu = focused is null ? null : FindAncestor<ContextMenu>(focused);
         switch (action)
@@ -298,7 +376,11 @@ public partial class MainWindow : Window
                 break;
 
             case PadAction.Back:
-                if (openMenu is not null)
+                if (dialogFrame is not null)
+                {
+                    CloseDialog(false);
+                }
+                else if (openMenu is not null)
                 {
                     openMenu.IsOpen = false;
                 }
@@ -458,7 +540,8 @@ public partial class MainWindow : Window
             Library.Save(library);
             // Erst nach dem Speichern löschen, damit die Bibliothek nie auf fehlende Dateien zeigt.
             removed.ForEach(Library.DeleteImportedFiles);
-            StatusText.Text = $"{detected.Count} Spiele erkannt · {library.Count(entry => entry.IsManual)} eigene Einträge";
+            StatusText.Text = "";
+            RescanButton.ToolTip = $"Installierte Spiele neu suchen\n{detected.Count} Spiele erkannt · {library.Count(entry => entry.IsManual)} eigene Einträge";
         }
         catch (Exception exception)
         {
@@ -572,6 +655,9 @@ public partial class MainWindow : Window
             .ToList();
         var byName = matches.OrderBy(entry => entry.DisplayName, StringComparer.CurrentCultureIgnoreCase).ToList();
         var recent = matches.Where(entry => entry.LastLaunched is not null).OrderByDescending(entry => entry.LastLaunched);
+        var isHome = filter == "all" && query.Length == 0;
+        // Vor den Bereichen, denn das Spiel im Banner soll nicht direkt darunter noch einmal auftauchen.
+        UpdateHero(pool, isHome);
 
         List<Section> sections = filter switch
         {
@@ -579,9 +665,9 @@ public partial class MainWindow : Window
             "all" when query.Length == 0 =>
             [
                 new("Läuft gerade", byName.Where(entry => entry.IsRunning).ToList()),
-                new("Zuletzt gestartet", recent.Take(HomeRecentCount).ToList()),
+                new("Zuletzt gestartet", recent.Where(entry => entry != featured).Take(homeColumns).ToList()),
                 new("Meistgespielt", matches.Where(entry => entry.Playtime is not null).OrderByDescending(entry => entry.Playtime)
-                    .Take(HomeRecentCount).ToList()),
+                    .Take(homeColumns).ToList()),
                 new("Favoriten", byName.Where(entry => entry.Favorite).ToList()),
                 .. categories.Select(category => new Section(category.Name, byName.Where(entry => entry.Category == category.Name).ToList())),
                 // Einträge mit Kategorie stehen schon in ihrem eigenen Bereich.
@@ -595,8 +681,8 @@ public partial class MainWindow : Window
         visible = sections.SelectMany(section => section.Items).ToList();
         Sections.ItemsSource = sections;
 
-        var isHome = filter == "all" && query.Length == 0;
-        UpdateHero(pool, isHome);
+        // Das Banner ersetzt auf der Startseite die Überschrift.
+        PageHeader.Visibility = Hero.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
         PageTitle.Text = query.Length > 0 ? "Suchergebnisse" : filter switch
         {
             "favorites" => "Favoriten",
@@ -654,12 +740,14 @@ public partial class MainWindow : Window
             _ = LoadIconAsync(featured);
         }
 
-        HeroImage.Source = featured.Cover ?? ImageCache.Load(featured.HeroPath);
+        // Volle Auflösung (0): im Vollbild füllt das Banner die ganze Bildschirmbreite.
+        HeroImage.Source = featured.Cover ?? ImageCache.Load(featured.HeroPath, 0);
         Ambient.Source = ImageCache.Load(featured.CustomCoverPath ?? featured.HeroPath, ImageCache.GlowWidth) ?? featured.IconWash;
         HeroLogo.Source = ImageCache.Load(featured.LogoPath);
         HeroLogo.Visibility = HeroLogo.Source is null ? Visibility.Collapsed : Visibility.Visible;
         HeroTitle.Visibility = HeroLogo.Source is null ? Visibility.Visible : Visibility.Collapsed;
-        HeroLabel.Text = featured.IsRunning ? "●  LÄUFT GERADE"
+        HeroDot.Fill = (Brush)FindResource(featured.IsRunning ? "RunningBrush" : "BrandBrush");
+        HeroLabel.Text = featured.IsRunning ? "LÄUFT GERADE"
             : featured.LastLaunched is { } launched ? $"WEITERMACHEN  ·  {Ago(launched)}"
             : featured.Favorite ? "AUS DEINEN FAVORITEN" : "TIPP DES TAGES";
         HeroPlayText.Text = featured.IsGame ? "Spielen" : "Öffnen";
@@ -676,7 +764,16 @@ public partial class MainWindow : Window
         var span => $"vor {(int)span.TotalDays} Tagen"
     };
 
-    private void OnHeroSizeChanged(object sender, SizeChangedEventArgs e) => HeroClip.Rect = new Rect(e.NewSize);
+    /// <summary>Das Banner füllt gut zwei Drittel der Höhe, darunter schaut noch die erste Kachelreihe hervor.</summary>
+    private void OnContentSizeChanged(object sender, SizeChangedEventArgs e) =>
+        Hero.Height = Math.Clamp(Math.Min(e.NewSize.Width * 0.6, e.NewSize.Height * 0.68), 340, 960);
+
+    /// <summary>Banner bleibt beim Scrollen leicht zurück (Tiefe); was unter die Titelleiste läuft, wird abgedunkelt.</summary>
+    private void OnContentScrolled(object sender, ScrollChangedEventArgs e)
+    {
+        HeroParallax.Y = e.VerticalOffset * 0.35;
+        TitleScrim.Opacity = 0.6 + 0.4 * Math.Min(1, e.VerticalOffset / 160);
+    }
 
     private void OnHeroPlayClick(object sender, RoutedEventArgs e)
     {
@@ -714,8 +811,7 @@ public partial class MainWindow : Window
         }
         catch (Exception exception)
         {
-            MessageBox.Show(this, $"„{entry.DisplayName}“ konnte nicht gestartet werden.\n\n{exception.Message}",
-                Title, MessageBoxButton.OK, MessageBoxImage.Warning);
+            ShowDialogCard($"„{entry.DisplayName}“ konnte nicht gestartet werden", exception.Message);
         }
     }
 
@@ -733,7 +829,11 @@ public partial class MainWindow : Window
 
     private void OnActivated(object? sender, EventArgs e)
     {
-        SearchBox.Focus();        _ = UpdateRunningAsync();
+        if (dialogFrame is null)
+        {
+            SearchBox.Focus();
+        }
+        _ = UpdateRunningAsync();
     }
 
     private void OnSearchChanged(object sender, TextChangedEventArgs e) => Refresh();
@@ -779,14 +879,21 @@ public partial class MainWindow : Window
     // Muss zum rechten Kachelrand im TileButton-Stil und zum negativen Rand der Kachelliste passen.
     private const double TileGap = 20;
     private const double TileMinWidth = 200;
+    private const double WideTileMinWidth = 260;
+    private const double WideLayoutWidth = 1700;
 
-    /// <summary>So viele Spalten wie mit Mindestbreite passen, Rest auf die Kacheln verteilt: jede Zeile schließt bündig mit dem Banner ab.</summary>
+    /// <summary>So viele Spalten wie mit Mindestbreite passen, Rest auf die Kacheln verteilt: jede Zeile schließt bündig ab.</summary>
     private void OnSectionsSizeChanged(object sender, SizeChangedEventArgs e)
     {
-        // Das Banner wächst mit, damit es auch auf breiten Bildschirmen nicht zum schmalen Streifen wird.
-        Hero.Height = Math.Clamp(e.NewSize.Width * 0.32, 340, 480);
         var available = e.NewSize.Width + TileGap;
-        var columns = Math.Max(1, (int)(available / (TileMinWidth + TileGap)));
+        var minWidth = e.NewSize.Width >= WideLayoutWidth ? WideTileMinWidth : TileMinWidth;
+        var columns = Math.Max(1, (int)(available / (minWidth + TileGap)));
+        if (columns != homeColumns)
+        {
+            homeColumns = columns;
+            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, Refresh);
+        }
+
         var width = Math.Floor(available / columns - TileGap);
         if (Resources["TileWidth"] is double current && current == width)
         {
@@ -866,11 +973,19 @@ public partial class MainWindow : Window
 
     private void OnAutostartChanged(object sender, RoutedEventArgs e)
     {
+        FullscreenAtLogonBox.IsEnabled = AutostartBox.IsChecked;
         // Feuert auch beim Setzen des Startzustands; ein Entwickler-Build würde sonst seinen Pfad eintragen.
         if (IsLoaded)
         {
             Autostart.Set(AutostartBox.IsChecked == true);
         }
+    }
+
+    private void OnStartModeClick(object sender, RoutedEventArgs e)
+    {
+        settings.StartFullscreen = StartFullscreenBox.IsChecked;
+        settings.FullscreenAtLogon = FullscreenAtLogonBox.IsChecked;
+        settings.Save();
     }
 
     private async void OnRescanClick(object sender, RoutedEventArgs e) => await RescanAsync();
@@ -1055,16 +1170,14 @@ public partial class MainWindow : Window
 
     private async Task StopAsync(LibraryEntry entry)
     {
-        if (MessageBox.Show(this, $"„{entry.DisplayName}“ beenden? Nicht gespeicherter Fortschritt geht verloren.", Title,
-                MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes)
+        if (!ShowDialogCard($"„{entry.DisplayName}“ beenden?", "Nicht gespeicherter Fortschritt geht verloren.", "Beenden", "Abbrechen"))
         {
             return;
         }
 
         if (!await RunningDetector.StopAsync(entry))
         {
-            MessageBox.Show(this, $"„{entry.DisplayName}“ ließ sich nicht ganz beenden, vermutlich läuft es mit Administratorrechten.",
-                Title, MessageBoxButton.OK, MessageBoxImage.Warning);
+            ShowDialogCard($"„{entry.DisplayName}“ ließ sich nicht ganz beenden", "Vermutlich läuft es mit Administratorrechten.");
         }
 
         await UpdateRunningAsync();
@@ -1072,8 +1185,7 @@ public partial class MainWindow : Window
 
     private async Task UninstallAsync(LibraryEntry entry)
     {
-        if (MessageBox.Show(this, $"„{entry.DisplayName}“ deinstallieren?", Title,
-                MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes)
+        if (!ShowDialogCard($"„{entry.DisplayName}“ deinstallieren?", "Öffnet den Launcher oder das Deinstallationsprogramm des Spiels.", "Deinstallieren", "Abbrechen"))
         {
             return;
         }
@@ -1082,8 +1194,7 @@ public partial class MainWindow : Window
         {
             if (!await Uninstaller.StartAsync(entry))
             {
-                MessageBox.Show(this, $"Für „{entry.DisplayName}“ gibt es kein Deinstallationsprogramm. Bitte über {entry.SourceName} deinstallieren.",
-                    Title, MessageBoxButton.OK, MessageBoxImage.Information);
+                ShowDialogCard("Kein Deinstallationsprogramm gefunden", $"Bitte „{entry.DisplayName}“ über {entry.SourceName} deinstallieren.");
                 return;
             }
         }
@@ -1094,8 +1205,7 @@ public partial class MainWindow : Window
         }
         catch (Exception exception)
         {
-            MessageBox.Show(this, $"„{entry.DisplayName}“ konnte nicht deinstalliert werden.\n\n{exception.Message}",
-                Title, MessageBoxButton.OK, MessageBoxImage.Warning);
+            ShowDialogCard($"„{entry.DisplayName}“ konnte nicht deinstalliert werden", exception.Message);
             return;
         }
 
@@ -1118,7 +1228,7 @@ public partial class MainWindow : Window
 
         if (ImageCache.Load(dialog.FileName) is null)
         {
-            MessageBox.Show(this, "Dieses Bild kann nicht geöffnet werden.", Title, MessageBoxButton.OK, MessageBoxImage.Warning);
+            ShowDialogCard("Dieses Bild kann nicht geöffnet werden", "");
             return;
         }
 
@@ -1151,35 +1261,57 @@ public partial class MainWindow : Window
         SaveAndRefresh();
     }
 
-    private string? Prompt(string title, string value)
+    private string? Prompt(string title, string value) =>
+        ShowDialogCard(title, "", "OK", "Abbrechen", value) ? DialogInput.Text.Trim() : null;
+
+    private System.Windows.Threading.DispatcherFrame? dialogFrame;
+    private bool dialogConfirmed;
+
+    /// <summary>Zeigt einen Dialog im Fenster und wartet wie eine MessageBox auf die Antwort; die Oberfläche läuft währenddessen weiter.</summary>
+    private bool ShowDialogCard(string title, string text, string confirm = "OK", string? cancel = null, string? input = null)
     {
-        var box = new TextBox { Text = value, MinWidth = 340, Margin = new Thickness(0, 0, 0, 16) };
-        var ok = new Button { Content = "OK", IsDefault = true, MinWidth = 90 };
-        var cancel = new Button { Content = "Abbrechen", IsCancel = true, MinWidth = 90, Margin = new Thickness(8, 0, 0, 0) };
-        var dialog = new Window
+        DialogTitle.Text = title;
+        DialogText.Text = text;
+        DialogText.Visibility = text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        DialogInput.Text = input ?? "";
+        DialogInput.Visibility = input is null ? Visibility.Collapsed : Visibility.Visible;
+        DialogConfirm.Content = confirm;
+        DialogCancel.Content = cancel;
+        DialogCancel.Visibility = cancel is null ? Visibility.Collapsed : Visibility.Visible;
+        var previousFocus = Keyboard.FocusedElement;
+        DialogHost.Visibility = Visibility.Visible;
+        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, () =>
         {
-            Title = title,
-            Owner = this,
-            SizeToContent = SizeToContent.WidthAndHeight,
-            ResizeMode = ResizeMode.NoResize,
-            WindowStartupLocation = WindowStartupLocation.CenterOwner,
-            ShowInTaskbar = false,
-            Content = new StackPanel
+            // Bei Rückfragen startet der Fokus auf „Abbrechen“, damit Enter oder die A-Taste nichts Unwiderrufliches auslöst.
+            if (input is not null)
             {
-                Margin = new Thickness(20),
-                Children =
-                {
-                    box,
-                    new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Children = { ok, cancel } }
-                }
+                DialogInput.Focus();
+                DialogInput.SelectAll();
             }
-        };
-        ok.Click += (_, _) => dialog.DialogResult = true;
-        dialog.Loaded += (_, _) =>
-        {
-            box.Focus();
-            box.SelectAll();
-        };
-        return dialog.ShowDialog() == true ? box.Text.Trim() : null;
+            else if (cancel is not null)
+            {
+                DialogCancel.Focus();
+            }
+            else
+            {
+                DialogConfirm.Focus();
+            }
+        });
+        dialogFrame = new System.Windows.Threading.DispatcherFrame();
+        System.Windows.Threading.Dispatcher.PushFrame(dialogFrame);
+        dialogFrame = null;
+        DialogHost.Visibility = Visibility.Collapsed;
+        previousFocus?.Focus();
+        return dialogConfirmed;
     }
+
+    private void CloseDialog(bool confirmed)
+    {
+        dialogConfirmed = confirmed;
+        dialogFrame!.Continue = false;
+    }
+
+    private void OnDialogConfirmClick(object sender, RoutedEventArgs e) => CloseDialog(true);
+
+    private void OnDialogCancelClick(object sender, RoutedEventArgs e) => CloseDialog(false);
 }

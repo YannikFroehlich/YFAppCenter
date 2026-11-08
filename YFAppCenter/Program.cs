@@ -6,7 +6,12 @@ namespace YFAppCenter;
 
 public static class Program
 {
+#if DEBUG
+    // Sonst holt "dotnet run" nur die installierte App nach vorne, statt den Entwickler-Build zu starten.
+    private const string InstanceName = @"Local\YFAppCenter.Debug";
+#else
     private const string InstanceName = @"Local\YFAppCenter";
+#endif
     private const int AnyProcess = -1;
 
     [STAThread]

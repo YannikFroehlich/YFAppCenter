@@ -36,6 +36,27 @@ public sealed class LibraryTests
     }
 
     [TestMethod]
+    public void Start_mode_follows_the_settings_on_manual_start_and_at_logon()
+    {
+        var off = new AppSettings();
+        Assert.IsFalse(off.OpensFullscreen(atLogon: false));
+        Assert.IsFalse(off.StaysInTray(atLogon: false));
+        Assert.IsFalse(off.OpensFullscreen(atLogon: true));
+        Assert.IsTrue(off.StaysInTray(atLogon: true));
+
+        // Nur „Im Vollbild starten“: bei der Anmeldung im Infobereich warten, beim Öffnen dann Vollbild.
+        var always = new AppSettings { StartFullscreen = true };
+        Assert.IsTrue(always.OpensFullscreen(atLogon: false));
+        Assert.IsTrue(always.OpensFullscreen(atLogon: true));
+        Assert.IsTrue(always.StaysInTray(atLogon: true));
+
+        var logon = new AppSettings { FullscreenAtLogon = true };
+        Assert.IsFalse(logon.OpensFullscreen(atLogon: false));
+        Assert.IsTrue(logon.OpensFullscreen(atLogon: true));
+        Assert.IsFalse(logon.StaysInTray(atLogon: true));
+    }
+
+    [TestMethod]
     public void Merge_keeps_games_on_a_missing_drive()
     {
         var usedLetters = DriveInfo.GetDrives().Select(drive => char.ToUpperInvariant(drive.Name[0])).ToHashSet();

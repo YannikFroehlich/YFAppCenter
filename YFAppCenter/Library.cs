@@ -455,6 +455,38 @@ public static class Autostart
     }
 }
 
+/// <summary>Startverhalten; liegt neben der Bibliothek, gehört aber nicht zu ihren Einträgen.</summary>
+public sealed class AppSettings
+{
+    private static readonly string SettingsFile = Path.Combine(Library.DataFolder, "settings.json");
+
+    public bool StartFullscreen { get; set; }
+    public bool FullscreenAtLogon { get; set; }
+
+    public bool OpensFullscreen(bool atLogon) => StartFullscreen || (atLogon && FullscreenAtLogon);
+
+    /// <summary>Bei der Anmeldung wartet die App im Infobereich, außer sie soll dann sofort im Vollbild aufgehen.</summary>
+    public bool StaysInTray(bool atLogon) => atLogon && !FullscreenAtLogon;
+
+    public static AppSettings Load()
+    {
+        try
+        {
+            return JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(SettingsFile)) ?? new();
+        }
+        catch (Exception exception) when (exception is IOException or JsonException or UnauthorizedAccessException)
+        {
+            return new();
+        }
+    }
+
+    public void Save()
+    {
+        Directory.CreateDirectory(Library.DataFolder);
+        File.WriteAllText(SettingsFile, JsonSerializer.Serialize(this));
+    }
+}
+
 public static class GameScanner
 {
     private const string SteamworksRedistributablesAppId = "228980";

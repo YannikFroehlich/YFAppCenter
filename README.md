@@ -16,6 +16,7 @@ Ein Launcher für Windows 11, der installierte Spiele aller gängigen Launcher u
 - Erkannte Spiele über ihren Launcher oder ihr Deinstallationsprogramm deinstallieren
 - Spielzeit aus YFTimeTracker, falls installiert (nur lesend)
 - Bedienung per Xbox-Controller und Tastatur (Suche, Enter startet den ersten Treffer)
+- Vollbild per F11 oder Knopf; optional direkt im Vollbild starten, auch beim Windows-Start
 - Infobereich-Symbol, optional mit Windows starten
 - Automatische Updates über die GitHub-Releases
 

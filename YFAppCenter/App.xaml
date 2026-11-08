@@ -17,14 +17,15 @@
         <!-- Fluent setzt im dunklen Modus schwarze Schrift auf Akzentflächen; auf Violett braucht es Weiß. -->
         <SolidColorBrush x:Key="TextOnAccentFillColorPrimaryBrush" Color="#FFFFFF" />
 
-        <!-- Flächen: Inhalt auf tiefem Blauschwarz, Seitenleiste eine Stufe dunkler. -->
-        <SolidColorBrush x:Key="CanvasBrush" Color="#0E0F14" />
-        <SolidColorBrush x:Key="SidebarBrush" Color="#09090D" />
-        <SolidColorBrush x:Key="HairlineBrush" Color="#12FFFFFF" />
+        <!-- Flächen: tiefes Blauschwarz; die Seitenleiste ist durchscheinend, damit der Farbschein des Banners durchkommt. -->
+        <SolidColorBrush x:Key="CanvasBrush" Color="#0B0C11" />
+        <SolidColorBrush x:Key="SidebarBrush" Color="#B3070810" />
+        <SolidColorBrush x:Key="HairlineBrush" Color="#14FFFFFF" />
         <SolidColorBrush x:Key="GlassBrush" Color="#0FFFFFFF" />
         <SolidColorBrush x:Key="GlassHoverBrush" Color="#1AFFFFFF" />
         <SolidColorBrush x:Key="GlassStrokeBrush" Color="#1AFFFFFF" />
         <SolidColorBrush x:Key="AccentTextBrush" Color="#A78BFA" />
+        <SolidColorBrush x:Key="RunningBrush" Color="#4ADE80" />
 
         <!-- Farbschein oben im Inhalt und der Übergang zurück in die Hintergrundfarbe (Farbe wie CanvasBrush). -->
         <RadialGradientBrush x:Key="BrandGlowBrush" Center="0.15,0" GradientOrigin="0.15,0" RadiusX="0.85" RadiusY="0.9">
@@ -33,15 +34,16 @@
             <GradientStop Color="#002563EB" Offset="1" />
         </RadialGradientBrush>
         <LinearGradientBrush x:Key="CanvasFadeBrush" StartPoint="0,0" EndPoint="0,1">
-            <GradientStop Color="#4D0E0F14" Offset="0" />
-            <GradientStop Color="#A60E0F14" Offset="0.5" />
-            <GradientStop Color="#FF0E0F14" Offset="1" />
+            <GradientStop Color="#260B0C11" Offset="0" />
+            <GradientStop Color="#990B0C11" Offset="0.45" />
+            <GradientStop Color="#FF0B0C11" Offset="0.85" />
         </LinearGradientBrush>
 
-        <!-- Farbverlauf aus dem Logo; für gewählte Bereiche und Hauptaktionen. -->
+        <!-- Farbverlauf aus dem Logo; nur für die Hauptaktion und kleine Akzente, damit die Spielebilder wirken. -->
         <LinearGradientBrush x:Key="BrandBrush" StartPoint="0,0" EndPoint="1,1">
             <GradientStop Color="#2563EB" Offset="0" />
-            <GradientStop Color="#7C3AED" Offset="1" />
+            <GradientStop Color="#7C3AED" Offset="0.6" />
+            <GradientStop Color="#DB2777" Offset="1" />
         </LinearGradientBrush>
 
         <FontFamily x:Key="DisplayFont">Segoe UI Variable Display, Segoe UI</FontFamily>
