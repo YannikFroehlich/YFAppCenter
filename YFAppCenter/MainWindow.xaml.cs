@@ -34,9 +34,24 @@ public partial class MainWindow : Window
     private bool rescanOnActivate;
     private readonly System.Windows.Threading.DispatcherTimer runningTimer = new() { Interval = TimeSpan.FromSeconds(5) };
 
+    // Dauerhafte Effekte nur, wenn Windows-Animationen an sind und eine Grafikkarte rendert (nicht etwa über Remotedesktop).
+    private readonly bool motion = SystemParameters.ClientAreaAnimation && RenderCapability.Tier >> 16 == 2;
+    private readonly Storyboard? ambient;
+
     public MainWindow()
     {
         InitializeComponent();
+        if (motion)
+        {
+            // Ressourcen aus XAML sind eingefroren; animieren lässt sich nur eine Kopie.
+            var runningPulse = ((Brush)FindResource("RunningBrush")).Clone();
+            Resources["RunningBrush"] = runningPulse;
+            RegisterName("RunningPulse", runningPulse);
+            ambient = (Storyboard)FindResource("AmbientLoop");
+            ambient.Begin(this, isControllable: true);
+            ambient.Pause(this);
+        }
+
         windowFrame = System.Windows.Shell.WindowChrome.GetWindowChrome(this);
         // Kachelbilder in der tatsächlich benötigten Auflösung laden (auf großen Bildschirmen bis gut 300 px breit).
         ImageCache.TileWidth = (int)(340 * VisualTreeHelper.GetDpi(this).DpiScaleX);
@@ -70,13 +85,14 @@ public partial class MainWindow : Window
 
         Refresh();
         Loaded += (_, _) => ShowPage();
-        // Laufende Programme und Controller nur prüfen, solange das Fenster im Vordergrund ist.
+        // Laufende Programme, Controller und Effekte nur, solange das Fenster im Vordergrund ist: beim Spielen kosten sie nichts.
         runningTimer.Tick += async (_, _) => await UpdateRunningAsync();
         padTimer.Tick += (_, _) => PollGamepad();
         Activated += async (_, _) =>
         {
             runningTimer.Start();
             padTimer.Start();
+            ambient?.Resume(this);
             if (rescanOnActivate)
             {
                 rescanOnActivate = false;
@@ -92,6 +108,7 @@ public partial class MainWindow : Window
         {
             runningTimer.Stop();
             padTimer.Stop();
+            ambient?.Pause(this);
         };
         LogoPanel.ToolTip = $"Version {AppUpdater.CurrentVersion}";
         AppUpdater.SyncInstalledVersion();
@@ -599,6 +616,8 @@ public partial class MainWindow : Window
 
     private const string CategoryPrefix = "cat:";
 
+    private List<CategoryItem> shownCategories = [];
+
     private string? SelectedCategory => filter.StartsWith(CategoryPrefix, StringComparison.Ordinal) ? filter[CategoryPrefix.Length..] : null;
 
     private void Refresh()
@@ -775,6 +794,20 @@ public partial class MainWindow : Window
         TitleScrim.Opacity = 0.6 + 0.4 * Math.Min(1, e.VerticalOffset / 160);
     }
 
+    /// <summary>Bild und Schrift gleiten gegenläufig zur Maus: wirkt wie zwei Ebenen hintereinander.</summary>
+    private void OnHeroMouseMove(object sender, MouseEventArgs e)
+    {
+        if (!motion)
+        {
+            return;
+        }
+
+        var offset = e.GetPosition(Hero).X / Hero.ActualWidth - 0.5;
+        var glide = TimeSpan.FromMilliseconds(400);
+        HeroParallax.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(offset * -28, glide));
+        HeroContentShift.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(offset * 10, glide));
+    }
+
     private void OnHeroPlayClick(object sender, RoutedEventArgs e)
     {
         if (featured is not null)
@@ -800,19 +833,46 @@ public partial class MainWindow : Window
         Refresh();
     }
 
-    private void Launch(LibraryEntry entry)
+    private async void Launch(LibraryEntry entry)
     {
+        // Doppelklick oder A-Taste während der Startsequenz: nicht ein zweites Mal starten.
+        if (LaunchOverlay.Visibility == Visibility.Visible)
+        {
+            return;
+        }
+
         try
         {
             Library.Launch(entry.LaunchTarget);
             entry.LastLaunched = DateTime.Now;
             SaveAndRefresh();
-            WindowState = WindowState.Minimized;
         }
         catch (Exception exception)
         {
             ShowDialogCard($"„{entry.DisplayName}“ konnte nicht gestartet werden", exception.Message);
+            return;
         }
+
+        await PlayLaunchSplashAsync(entry);
+        WindowState = WindowState.Minimized;
+        LaunchOverlay.Visibility = Visibility.Collapsed;
+    }
+
+    /// <summary>Das Spiel startet schon im Hintergrund; so lange überbrückt die Sequenz die Wartezeit.</summary>
+    private async Task PlayLaunchSplashAsync(LibraryEntry entry)
+    {
+        if (!motion)
+        {
+            return;
+        }
+
+        LaunchOverlay.DataContext = entry;
+        LaunchArt.Source = entry.Cover ?? ImageCache.Load(entry.HeroPath, 0);
+        LaunchLogo.Source = ImageCache.Load(entry.LogoPath);
+        LaunchFallback.Visibility = LaunchLogo.Source is null ? Visibility.Visible : Visibility.Collapsed;
+        LaunchOverlay.Visibility = Visibility.Visible;
+        ((Storyboard)FindResource("LaunchSplash")).Begin(this);
+        await Task.Delay(1200);
     }
 
     private void AddFiles(IEnumerable<string> paths)
@@ -866,7 +926,7 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>Neue Seite oben beginnen und kurz einblenden: eine Animation für die ganze Seite statt einer pro Kachel.</summary>
+    /// <summary>Neue Seite oben beginnen und einblenden; nur Banner und die ersten Kachelreihen schweben einzeln ein, das bleibt auch bei großen Bibliotheken flüssig.</summary>
     private void ShowPage()
     {
         ContentScroll.ScrollToTop();
@@ -874,6 +934,43 @@ public partial class MainWindow : Window
         var ease = (IEasingFunction)FindResource("EaseOut");
         ContentHost.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, duration) { EasingFunction = ease, FillBehavior = FillBehavior.Stop });
         ContentShift.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(14, 0, duration) { EasingFunction = ease, FillBehavior = FillBehavior.Stop });
+
+        // Die Kacheln entstehen erst beim Layout der neuen Liste.
+        UpdateLayout();
+        var tiles = FindDescendants<Button>(Sections).Where(IsTile).Take(homeColumns * 2);
+        var index = 0;
+        foreach (var element in HeroContent.Children.Cast<UIElement>().Where(row => row.IsVisible).Concat(tiles))
+        {
+            Reveal(element, TimeSpan.FromMilliseconds(30 * index++));
+        }
+    }
+
+    /// <summary>Lässt ein Element nach <paramref name="delay"/> von unten einschweben.</summary>
+    private void Reveal(UIElement element, TimeSpan delay)
+    {
+        if (!motion)
+        {
+            return;
+        }
+
+        var ease = (IEasingFunction)FindResource("EaseOut");
+        var shift = new TranslateTransform();
+        element.RenderTransform = shift;
+        // Basiswert statt 1: ausgeblendete Kacheln bleiben halbtransparent.
+        element.BeginAnimation(OpacityProperty, Track(0, (double)element.GetAnimationBaseValue(OpacityProperty)));
+        shift.BeginAnimation(TranslateTransform.YProperty, Track(26, 0));
+
+        // Keyframes statt BeginTime: so ist das Element auch während der Wartezeit schon unsichtbar.
+        DoubleAnimationUsingKeyFrames Track(double from, double to) => new()
+        {
+            FillBehavior = FillBehavior.Stop,
+            KeyFrames =
+            {
+                new DiscreteDoubleKeyFrame(from, KeyTime.FromTimeSpan(TimeSpan.Zero)),
+                new DiscreteDoubleKeyFrame(from, KeyTime.FromTimeSpan(delay)),
+                new EasingDoubleKeyFrame(to, KeyTime.FromTimeSpan(delay + TimeSpan.FromMilliseconds(380)), ease)
+            }
+        };
     }
 
     // Muss zum rechten Kachelrand im TileButton-Stil und zum negativen Rand der Kachelliste passen.
@@ -918,6 +1015,13 @@ public partial class MainWindow : Window
     /// </summary>
     private void BuildCategoryNav(List<CategoryItem> categories)
     {
+        // Sonst spielt der gewählte Eintrag bei jedem Refresh (etwa jedem Tastendruck in der Suche) seine Animation neu ab.
+        if (categories.SequenceEqual(shownCategories))
+        {
+            return;
+        }
+
+        shownCategories = categories;
         CategoryNav.Children.Clear();
         foreach (var category in categories)
         {
@@ -1280,6 +1384,7 @@ public partial class MainWindow : Window
         DialogCancel.Visibility = cancel is null ? Visibility.Collapsed : Visibility.Visible;
         var previousFocus = Keyboard.FocusedElement;
         DialogHost.Visibility = Visibility.Visible;
+        Reveal(DialogCard, TimeSpan.Zero);
         Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, () =>
         {
             // Bei Rückfragen startet der Fokus auf „Abbrechen“, damit Enter oder die A-Taste nichts Unwiderrufliches auslöst.

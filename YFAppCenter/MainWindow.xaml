@@ -20,6 +20,101 @@
 
     <Window.Resources>
         <CubicEase x:Key="EaseOut" EasingMode="EaseOut" />
+        <SineEase x:Key="Drift" EasingMode="EaseInOut" />
+
+        <!-- Sternenstaub als gekachelte Zeichnung: einmal gerastert (Cache), danach verschiebt die Grafikkarte nur noch die Fläche.
+             Kurze Linien mit runden Enden zeichnen Punkte; so bleibt es ein Pfad statt Dutzender Ellipsen. -->
+        <Geometry x:Key="DustPoints">M23,41h.01 M97,12h.01 M164,73h.01 M241,28h.01 M318,59h.01 M402,17h.01 M489,66h.01 M58,129h.01 M131,168h.01 M212,121h.01 M289,177h.01 M371,134h.01 M447,189h.01 M34,233h.01 M109,271h.01 M187,226h.01 M263,289h.01 M342,241h.01 M428,276h.01 M503,232h.01 M72,347h.01 M149,391h.01 M226,338h.01 M304,402h.01 M385,353h.01 M469,411h.01 M18,447h.01 M118,489h.01 M203,452h.01 M281,498h.01 M358,461h.01 M441,492h.01</Geometry>
+        <Geometry x:Key="VioletMotes">M62,88h.01 M247,41h.01 M468,132h.01 M633,67h.01 M141,302h.01 M392,268h.01 M588,351h.01 M37,486h.01 M276,517h.01 M521,589h.01 M668,474h.01</Geometry>
+        <Geometry x:Key="PinkMotes">M173,171h.01 M351,109h.01 M547,218h.01 M89,397h.01 M312,411h.01 M449,492h.01 M198,634h.01 M602,651h.01</Geometry>
+        <DrawingBrush x:Key="DustFar" TileMode="Tile" Stretch="None" Viewport="0,0,520,520" ViewportUnits="Absolute"
+                      Viewbox="0,0,520,520" ViewboxUnits="Absolute" RenderOptions.CachingHint="Cache">
+            <DrawingBrush.Drawing>
+                <GeometryDrawing Geometry="{StaticResource DustPoints}">
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="#CCFFFFFF" Thickness="1.5" StartLineCap="Round" EndLineCap="Round" />
+                    </GeometryDrawing.Pen>
+                </GeometryDrawing>
+            </DrawingBrush.Drawing>
+        </DrawingBrush>
+        <DrawingBrush x:Key="DustNear" TileMode="Tile" Stretch="None" Viewport="0,0,700,700" ViewportUnits="Absolute"
+                      Viewbox="0,0,700,700" ViewboxUnits="Absolute" RenderOptions.CachingHint="Cache">
+            <DrawingBrush.Drawing>
+                <DrawingGroup>
+                    <GeometryDrawing Geometry="{StaticResource VioletMotes}">
+                        <GeometryDrawing.Pen>
+                            <Pen Brush="#2EA78BFA" Thickness="13" StartLineCap="Round" EndLineCap="Round" />
+                        </GeometryDrawing.Pen>
+                    </GeometryDrawing>
+                    <GeometryDrawing Geometry="{StaticResource VioletMotes}">
+                        <GeometryDrawing.Pen>
+                            <Pen Brush="#F2DDD6FE" Thickness="2.6" StartLineCap="Round" EndLineCap="Round" />
+                        </GeometryDrawing.Pen>
+                    </GeometryDrawing>
+                    <GeometryDrawing Geometry="{StaticResource PinkMotes}">
+                        <GeometryDrawing.Pen>
+                            <Pen Brush="#2EF472B6" Thickness="11" StartLineCap="Round" EndLineCap="Round" />
+                        </GeometryDrawing.Pen>
+                    </GeometryDrawing>
+                    <GeometryDrawing Geometry="{StaticResource PinkMotes}">
+                        <GeometryDrawing.Pen>
+                            <Pen Brush="#F2FBCFE8" Thickness="2.2" StartLineCap="Round" EndLineCap="Round" />
+                        </GeometryDrawing.Pen>
+                    </GeometryDrawing>
+                </DrawingGroup>
+            </DrawingBrush.Drawing>
+        </DrawingBrush>
+
+        <!-- Alles Dauerhafte in einem Storyboard: MainWindow hält es an, sobald das Fenster nicht vorne ist (etwa beim Spielen).
+             RunningPulse ist der RunningBrush: ein Puls für alle „Läuft“-Punkte statt einer Animation pro Kachel. -->
+        <Storyboard x:Key="AmbientLoop" Timeline.DesiredFrameRate="30">
+            <DoubleAnimation Storyboard.TargetName="AuroraA" Storyboard.TargetProperty="X" From="-0.18" To="0.28" Duration="0:0:37" AutoReverse="True" RepeatBehavior="Forever" EasingFunction="{StaticResource Drift}" />
+            <DoubleAnimation Storyboard.TargetName="AuroraA" Storyboard.TargetProperty="Y" From="-0.12" To="0.3" Duration="0:0:29" AutoReverse="True" RepeatBehavior="Forever" EasingFunction="{StaticResource Drift}" />
+            <DoubleAnimation Storyboard.TargetName="AuroraB" Storyboard.TargetProperty="X" From="0.22" To="-0.3" Duration="0:0:43" AutoReverse="True" RepeatBehavior="Forever" EasingFunction="{StaticResource Drift}" />
+            <DoubleAnimation Storyboard.TargetName="AuroraB" Storyboard.TargetProperty="Y" From="0.16" To="-0.24" Duration="0:0:33" AutoReverse="True" RepeatBehavior="Forever" EasingFunction="{StaticResource Drift}" />
+            <DoubleAnimation Storyboard.TargetName="AuroraC" Storyboard.TargetProperty="X" From="-0.24" To="0.2" Duration="0:0:53" AutoReverse="True" RepeatBehavior="Forever" EasingFunction="{StaticResource Drift}" />
+            <DoubleAnimation Storyboard.TargetName="AuroraC" Storyboard.TargetProperty="Y" From="0.2" To="-0.2" Duration="0:0:41" AutoReverse="True" RepeatBehavior="Forever" EasingFunction="{StaticResource Drift}" />
+            <DoubleAnimation Storyboard.TargetName="AmbientZoom" Storyboard.TargetProperty="ScaleX" From="1.18" To="1.36" Duration="0:0:31" AutoReverse="True" RepeatBehavior="Forever" EasingFunction="{StaticResource Drift}" />
+            <DoubleAnimation Storyboard.TargetName="AmbientZoom" Storyboard.TargetProperty="ScaleY" From="1.18" To="1.36" Duration="0:0:31" AutoReverse="True" RepeatBehavior="Forever" EasingFunction="{StaticResource Drift}" />
+            <DoubleAnimation Storyboard.TargetName="AmbientTurn" Storyboard.TargetProperty="Angle" From="-5" To="5" Duration="0:0:47" AutoReverse="True" RepeatBehavior="Forever" EasingFunction="{StaticResource Drift}" />
+            <DoubleAnimation Storyboard.TargetName="DustFarShift" Storyboard.TargetProperty="Y" From="0" To="-520" Duration="0:1:40" RepeatBehavior="Forever" />
+            <DoubleAnimation Storyboard.TargetName="DustNearShift" Storyboard.TargetProperty="Y" From="0" To="-700" Duration="0:1:10" RepeatBehavior="Forever" />
+            <DoubleAnimation Storyboard.TargetName="DustFarLayer" Storyboard.TargetProperty="Opacity" From="0.14" To="0.5" Duration="0:0:5" AutoReverse="True" RepeatBehavior="Forever" EasingFunction="{StaticResource Drift}" />
+            <DoubleAnimation Storyboard.TargetName="DustNearLayer" Storyboard.TargetProperty="Opacity" From="0.3" To="0.8" Duration="0:0:7" AutoReverse="True" RepeatBehavior="Forever" EasingFunction="{StaticResource Drift}" />
+            <DoubleAnimation Storyboard.TargetName="HeroZoom" Storyboard.TargetProperty="ScaleX" From="1.06" To="1.15" Duration="0:0:26" AutoReverse="True" RepeatBehavior="Forever" EasingFunction="{StaticResource Drift}" />
+            <DoubleAnimation Storyboard.TargetName="HeroZoom" Storyboard.TargetProperty="ScaleY" From="1.06" To="1.15" Duration="0:0:26" AutoReverse="True" RepeatBehavior="Forever" EasingFunction="{StaticResource Drift}" />
+            <DoubleAnimation Storyboard.TargetName="HeroDustShift" Storyboard.TargetProperty="Y" From="0" To="-700" Duration="0:0:45" RepeatBehavior="Forever" />
+            <DoubleAnimation Storyboard.TargetName="HeroBeamShift" Storyboard.TargetProperty="X" From="-1.3" To="2.1" Duration="0:0:11" RepeatBehavior="Forever" />
+            <DoubleAnimation Storyboard.TargetName="RunningPulse" Storyboard.TargetProperty="Opacity" From="1" To="0.35" Duration="0:0:1" AutoReverse="True" RepeatBehavior="Forever" EasingFunction="{StaticResource Drift}" />
+        </Storyboard>
+
+        <!-- Startsequenz nach einem Klick auf „Spielen“ (siehe PlayLaunchSplashAsync). -->
+        <Storyboard x:Key="LaunchSplash">
+            <DoubleAnimation Storyboard.TargetName="LaunchOverlay" Storyboard.TargetProperty="Opacity" From="0" To="1" Duration="0:0:0.16" />
+            <DoubleAnimation Storyboard.TargetName="LaunchFlash" Storyboard.TargetProperty="Opacity" From="0.4" To="0" Duration="0:0:0.45" />
+            <DoubleAnimation Storyboard.TargetName="LaunchZoom" Storyboard.TargetProperty="ScaleX" From="1.22" To="1.04" Duration="0:0:1.2" EasingFunction="{StaticResource EaseOut}" />
+            <DoubleAnimation Storyboard.TargetName="LaunchZoom" Storyboard.TargetProperty="ScaleY" From="1.22" To="1.04" Duration="0:0:1.2" EasingFunction="{StaticResource EaseOut}" />
+            <DoubleAnimation Storyboard.TargetName="LaunchContent" Storyboard.TargetProperty="Opacity" From="0" To="1" Duration="0:0:0.3" />
+            <DoubleAnimation Storyboard.TargetName="LaunchContentScale" Storyboard.TargetProperty="ScaleX" From="0.8" To="1" Duration="0:0:0.5" EasingFunction="{StaticResource EaseOut}" />
+            <DoubleAnimation Storyboard.TargetName="LaunchContentScale" Storyboard.TargetProperty="ScaleY" From="0.8" To="1" Duration="0:0:0.5" EasingFunction="{StaticResource EaseOut}" />
+            <DoubleAnimation Storyboard.TargetName="LaunchRingA" Storyboard.TargetProperty="Opacity" BeginTime="0:0:0.1" From="0.9" To="0" Duration="0:0:0.9" />
+            <DoubleAnimation Storyboard.TargetName="LaunchRingAScale" Storyboard.TargetProperty="ScaleX" BeginTime="0:0:0.1" From="0.5" To="3.4" Duration="0:0:0.9" EasingFunction="{StaticResource EaseOut}" />
+            <DoubleAnimation Storyboard.TargetName="LaunchRingAScale" Storyboard.TargetProperty="ScaleY" BeginTime="0:0:0.1" From="0.5" To="3.4" Duration="0:0:0.9" EasingFunction="{StaticResource EaseOut}" />
+            <DoubleAnimation Storyboard.TargetName="LaunchRingB" Storyboard.TargetProperty="Opacity" BeginTime="0:0:0.35" From="0.9" To="0" Duration="0:0:0.85" />
+            <DoubleAnimation Storyboard.TargetName="LaunchRingBScale" Storyboard.TargetProperty="ScaleX" BeginTime="0:0:0.35" From="0.5" To="3.4" Duration="0:0:0.85" EasingFunction="{StaticResource EaseOut}" />
+            <DoubleAnimation Storyboard.TargetName="LaunchRingBScale" Storyboard.TargetProperty="ScaleY" BeginTime="0:0:0.35" From="0.5" To="3.4" Duration="0:0:0.85" EasingFunction="{StaticResource EaseOut}" />
+        </Storyboard>
+
+        <!-- Hauptaktion: Lichtstreif läuft einmal durch, der Schein wird größer. -->
+        <Storyboard x:Key="PrimaryGlowIn">
+            <DoubleAnimation Storyboard.TargetName="SweepShift" Storyboard.TargetProperty="X" From="-1.3" To="1.3" Duration="0:0:0.65" EasingFunction="{StaticResource EaseOut}" />
+            <DoubleAnimation Storyboard.TargetName="BgGlow" Storyboard.TargetProperty="BlurRadius" To="46" Duration="0:0:0.25" />
+            <DoubleAnimation Storyboard.TargetName="BgGlow" Storyboard.TargetProperty="Opacity" To="0.95" Duration="0:0:0.25" />
+        </Storyboard>
+        <Storyboard x:Key="PrimaryGlowOut">
+            <DoubleAnimation Storyboard.TargetName="BgGlow" Storyboard.TargetProperty="BlurRadius" To="26" Duration="0:0:0.25" />
+            <DoubleAnimation Storyboard.TargetName="BgGlow" Storyboard.TargetProperty="Opacity" To="0.5" Duration="0:0:0.25" />
+        </Storyboard>
 
         <!-- Kachelmaße; MainWindow passt sie an die Fensterbreite an, damit die Kacheln die Zeile füllen. -->
         <sys:Double x:Key="TileWidth">216</sys:Double>
@@ -121,10 +216,23 @@
                         <Grid>
                             <Border x:Name="Bg" CornerRadius="12" Background="{StaticResource BrandBrush}">
                                 <Border.Effect>
-                                    <DropShadowEffect Color="#7C3AED" BlurRadius="26" ShadowDepth="6" Direction="270" Opacity="0.5" />
+                                    <DropShadowEffect x:Name="BgGlow" Color="#7C3AED" BlurRadius="26" ShadowDepth="6" Direction="270" Opacity="0.5" />
                                 </Border.Effect>
                             </Border>
                             <Border x:Name="Shine" CornerRadius="12" Background="White" Opacity="0" />
+                            <!-- Verlauf statt Zuschnitt: der Streif bleibt so von selbst in den runden Ecken. -->
+                            <Border CornerRadius="12" IsHitTestVisible="False">
+                                <Border.Background>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0.6">
+                                        <LinearGradientBrush.RelativeTransform>
+                                            <TranslateTransform x:Name="SweepShift" X="-1.3" />
+                                        </LinearGradientBrush.RelativeTransform>
+                                        <GradientStop Color="#00FFFFFF" Offset="0.32" />
+                                        <GradientStop Color="#73FFFFFF" Offset="0.5" />
+                                        <GradientStop Color="#00FFFFFF" Offset="0.68" />
+                                    </LinearGradientBrush>
+                                </Border.Background>
+                            </Border>
                             <Border x:Name="Ring" CornerRadius="12" BorderThickness="1" BorderBrush="#33FFFFFF" />
                             <ContentPresenter Margin="{TemplateBinding Padding}" VerticalAlignment="Center"
                                               HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" />
@@ -132,6 +240,12 @@
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter TargetName="Shine" Property="Opacity" Value="0.12" />
+                                <Trigger.EnterActions>
+                                    <BeginStoryboard Storyboard="{StaticResource PrimaryGlowIn}" />
+                                </Trigger.EnterActions>
+                                <Trigger.ExitActions>
+                                    <BeginStoryboard Storyboard="{StaticResource PrimaryGlowOut}" />
+                                </Trigger.ExitActions>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
                                 <Setter TargetName="Shine" Property="Opacity" Value="0" />
@@ -140,6 +254,12 @@
                             <Trigger Property="IsKeyboardFocused" Value="True">
                                 <Setter TargetName="Ring" Property="BorderBrush" Value="White" />
                                 <Setter TargetName="Ring" Property="BorderThickness" Value="2" />
+                                <Trigger.EnterActions>
+                                    <BeginStoryboard Storyboard="{StaticResource PrimaryGlowIn}" />
+                                </Trigger.EnterActions>
+                                <Trigger.ExitActions>
+                                    <BeginStoryboard Storyboard="{StaticResource PrimaryGlowOut}" />
+                                </Trigger.ExitActions>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter Property="Opacity" Value="0.4" />
@@ -276,11 +396,26 @@
                 <Setter.Value>
                     <ControlTemplate TargetType="RadioButton">
                         <Grid>
+                            <Border x:Name="Wash" CornerRadius="10" Opacity="0" IsHitTestVisible="False">
+                                <Border.Background>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                        <GradientStop Color="#667C3AED" Offset="0" />
+                                        <GradientStop Color="#007C3AED" Offset="0.85" />
+                                    </LinearGradientBrush>
+                                </Border.Background>
+                            </Border>
                             <Border x:Name="Bg" CornerRadius="10" Background="Transparent" Padding="12,9" BorderThickness="1.5" BorderBrush="Transparent">
                                 <ContentPresenter />
                             </Border>
                             <Border x:Name="Marker" Width="3" Height="18" CornerRadius="1.5" Margin="1,0,0,0" HorizontalAlignment="Left"
-                                    Background="{StaticResource BrandBrush}" Visibility="Collapsed" />
+                                    Background="{StaticResource BrandBrush}" Visibility="Collapsed" RenderTransformOrigin="0.5,0.5">
+                                <Border.RenderTransform>
+                                    <ScaleTransform x:Name="MarkerScale" />
+                                </Border.RenderTransform>
+                                <Border.Effect>
+                                    <DropShadowEffect Color="#A78BFA" BlurRadius="12" ShadowDepth="0" Opacity="0.9" />
+                                </Border.Effect>
+                            </Border>
                         </Grid>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
@@ -292,6 +427,25 @@
                                 <Setter TargetName="Marker" Property="Visibility" Value="Visible" />
                                 <Setter Property="Foreground" Value="White" />
                                 <Setter Property="FontWeight" Value="SemiBold" />
+                                <Trigger.EnterActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="Wash" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.25" />
+                                            <DoubleAnimation Storyboard.TargetName="MarkerScale" Storyboard.TargetProperty="ScaleY" From="0" To="1" Duration="0:0:0.3">
+                                                <DoubleAnimation.EasingFunction>
+                                                    <BackEase EasingMode="EaseOut" Amplitude="0.6" />
+                                                </DoubleAnimation.EasingFunction>
+                                            </DoubleAnimation>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.EnterActions>
+                                <Trigger.ExitActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="Wash" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.2" />
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.ExitActions>
                             </Trigger>
                             <Trigger Property="IsKeyboardFocused" Value="True">
                                 <Setter TargetName="Bg" Property="BorderBrush" Value="{DynamicResource TextFillColorPrimaryBrush}" />
@@ -405,12 +559,18 @@
             <DoubleAnimation Storyboard.TargetName="ArtScale" Storyboard.TargetProperty="ScaleY" To="1.045" Duration="0:0:0.2" EasingFunction="{StaticResource EaseOut}" />
             <DoubleAnimation Storyboard.TargetName="PlayBadge" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.16" />
             <DoubleAnimation Storyboard.TargetName="PlayShift" Storyboard.TargetProperty="Y" To="0" Duration="0:0:0.2" EasingFunction="{StaticResource EaseOut}" />
+            <DoubleAnimation Storyboard.TargetName="Glow" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.25" />
+            <DoubleAnimation Storyboard.TargetName="ShineShift" Storyboard.TargetProperty="X" From="-1.3" To="1.3" Duration="0:0:0.75" EasingFunction="{StaticResource EaseOut}" />
         </Storyboard>
         <Storyboard x:Key="TileLower">
             <DoubleAnimation Storyboard.TargetName="ArtScale" Storyboard.TargetProperty="ScaleX" To="1" Duration="0:0:0.22" EasingFunction="{StaticResource EaseOut}" />
             <DoubleAnimation Storyboard.TargetName="ArtScale" Storyboard.TargetProperty="ScaleY" To="1" Duration="0:0:0.22" EasingFunction="{StaticResource EaseOut}" />
             <DoubleAnimation Storyboard.TargetName="PlayBadge" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.16" />
             <DoubleAnimation Storyboard.TargetName="PlayShift" Storyboard.TargetProperty="Y" To="6" Duration="0:0:0.2" />
+            <DoubleAnimation Storyboard.TargetName="Glow" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.25" />
+        </Storyboard>
+        <Storyboard x:Key="RingTurn">
+            <DoubleAnimation Storyboard.TargetName="RingSpin" Storyboard.TargetProperty="Angle" From="0" To="360" Duration="0:0:2.4" RepeatBehavior="Forever" />
         </Storyboard>
 
         <DataTemplate x:Key="TileTemplate">
@@ -433,7 +593,22 @@
                                 <DropShadowEffect BlurRadius="32" ShadowDepth="12" Direction="270" Opacity="0.75" />
                             </Border.Effect>
                         </Border>
-                        <Border x:Name="FocusRing" Margin="-5" CornerRadius="16" BorderThickness="2" Visibility="Collapsed" BorderBrush="White" />
+                        <!-- Farbschein in der Icon-Farbe; ragt über die Kachel hinaus und darf deshalb die Maus nicht abfangen. -->
+                        <Image x:Name="Glow" Source="{Binding IconWash}" Stretch="Fill" Margin="-64,-52" Opacity="0" IsHitTestVisible="False"
+                               RenderOptions.BitmapScalingMode="Linear" />
+                        <Border x:Name="FocusRing" Margin="-5" CornerRadius="16" BorderThickness="2" Visibility="Collapsed">
+                            <Border.BorderBrush>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                    <LinearGradientBrush.RelativeTransform>
+                                        <RotateTransform x:Name="RingSpin" CenterX="0.5" CenterY="0.5" />
+                                    </LinearGradientBrush.RelativeTransform>
+                                    <GradientStop Color="#FFFFFF" Offset="0" />
+                                    <GradientStop Color="#60A5FA" Offset="0.35" />
+                                    <GradientStop Color="#F472B6" Offset="0.7" />
+                                    <GradientStop Color="#FFFFFF" Offset="1" />
+                                </LinearGradientBrush>
+                            </Border.BorderBrush>
+                        </Border>
                         <Border CornerRadius="12" Background="#171821" />
                         <!-- Icon-Farben als weicher Schein auf der Karte (ohne Grafikeffekt, siehe IconWash). -->
                         <Border CornerRadius="12">
@@ -460,11 +635,24 @@
                             </Border.BorderBrush>
                         </Border>
                         <Border x:Name="HoverEdge" CornerRadius="12" BorderThickness="1.5" BorderBrush="#80FFFFFF" Visibility="Collapsed" />
+                        <Border x:Name="Shine" CornerRadius="12" Visibility="Collapsed" IsHitTestVisible="False">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0.7">
+                                    <LinearGradientBrush.RelativeTransform>
+                                        <TranslateTransform x:Name="ShineShift" X="-1.3" />
+                                    </LinearGradientBrush.RelativeTransform>
+                                    <GradientStop Color="#00FFFFFF" Offset="0.34" />
+                                    <GradientStop Color="#59FFFFFF" Offset="0.5" />
+                                    <GradientStop Color="#00FFFFFF" Offset="0.66" />
+                                </LinearGradientBrush>
+                            </Border.Background>
+                        </Border>
                         <Border x:Name="RunningBadge" CornerRadius="10" Padding="8,3,9,3" Margin="8"
                                 HorizontalAlignment="Left" VerticalAlignment="Top" Background="#D90B0C10"
                                 Visibility="Collapsed">
                             <StackPanel Orientation="Horizontal">
-                                <Ellipse Width="7" Height="7" Fill="{StaticResource RunningBrush}" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                <!-- DynamicResource: MainWindow ersetzt den Pinsel durch eine animierbare Kopie. -->
+                                <Ellipse Width="7" Height="7" Fill="{DynamicResource RunningBrush}" Margin="0,0,6,0" VerticalAlignment="Center" />
                                 <TextBlock Text="Läuft" FontSize="11" FontWeight="SemiBold" Foreground="White" />
                             </StackPanel>
                         </Border>
@@ -495,16 +683,20 @@
                 <Trigger SourceName="Tile" Property="IsKeyboardFocused" Value="True">
                     <Setter TargetName="FocusRing" Property="Visibility" Value="Visible" />
                     <Setter TargetName="Shadow" Property="Visibility" Value="Visible" />
+                    <Setter TargetName="Shine" Property="Visibility" Value="Visible" />
                     <Trigger.EnterActions>
                         <BeginStoryboard Storyboard="{StaticResource TileRaise}" />
+                        <BeginStoryboard x:Name="RingTurning" Storyboard="{StaticResource RingTurn}" />
                     </Trigger.EnterActions>
                     <Trigger.ExitActions>
                         <BeginStoryboard Storyboard="{StaticResource TileLower}" />
+                        <StopStoryboard BeginStoryboardName="RingTurning" />
                     </Trigger.ExitActions>
                 </Trigger>
                 <Trigger SourceName="Tile" Property="IsMouseOver" Value="True">
                     <Setter TargetName="Shadow" Property="Visibility" Value="Visible" />
                     <Setter TargetName="HoverEdge" Property="Visibility" Value="Visible" />
+                    <Setter TargetName="Shine" Property="Visibility" Value="Visible" />
                     <Trigger.EnterActions>
                         <BeginStoryboard Storyboard="{StaticResource TileRaise}" />
                     </Trigger.EnterActions>
@@ -541,8 +733,61 @@
              dekodiert und groß gezogen, das wirkt wie ein starker Weichzeichner ohne Grafikeffekt (siehe UpdateHero). -->
         <Grid Grid.ColumnSpan="2" ClipToBounds="True" IsHitTestVisible="False">
             <Rectangle Fill="{StaticResource BrandGlowBrush}" />
-            <Image x:Name="Ambient" Stretch="Fill" Margin="-120" Opacity="0.6" RenderOptions.BitmapScalingMode="Linear" />
+            <Image x:Name="Ambient" Stretch="Fill" Margin="-120" Opacity="0.6" RenderOptions.BitmapScalingMode="Linear" RenderTransformOrigin="0.5,0.5">
+                <Image.RenderTransform>
+                    <TransformGroup>
+                        <ScaleTransform x:Name="AmbientZoom" ScaleX="1.18" ScaleY="1.18" />
+                        <RotateTransform x:Name="AmbientTurn" />
+                    </TransformGroup>
+                </Image.RenderTransform>
+            </Image>
             <Rectangle Fill="{StaticResource CanvasFadeBrush}" />
+            <!-- Aurora: wandernde Farbflächen. Verschoben wird der Pinsel relativ zur Fläche, das passt zu jeder Fenstergröße.
+                 Liegt über dem Abdunkeln, damit auch das untere Ende langer Seiten lebt. -->
+            <Rectangle>
+                <Rectangle.Fill>
+                    <RadialGradientBrush Center="0.22,0.3" GradientOrigin="0.22,0.3" RadiusX="0.55" RadiusY="0.65">
+                        <RadialGradientBrush.RelativeTransform>
+                            <TranslateTransform x:Name="AuroraA" />
+                        </RadialGradientBrush.RelativeTransform>
+                        <GradientStop Color="#2E7C3AED" Offset="0" />
+                        <GradientStop Color="#007C3AED" Offset="1" />
+                    </RadialGradientBrush>
+                </Rectangle.Fill>
+            </Rectangle>
+            <Rectangle>
+                <Rectangle.Fill>
+                    <RadialGradientBrush Center="0.75,0.7" GradientOrigin="0.75,0.7" RadiusX="0.5" RadiusY="0.6">
+                        <RadialGradientBrush.RelativeTransform>
+                            <TranslateTransform x:Name="AuroraB" />
+                        </RadialGradientBrush.RelativeTransform>
+                        <GradientStop Color="#262563EB" Offset="0" />
+                        <GradientStop Color="#002563EB" Offset="1" />
+                    </RadialGradientBrush>
+                </Rectangle.Fill>
+            </Rectangle>
+            <Rectangle>
+                <Rectangle.Fill>
+                    <RadialGradientBrush Center="0.45,0.85" GradientOrigin="0.45,0.85" RadiusX="0.42" RadiusY="0.5">
+                        <RadialGradientBrush.RelativeTransform>
+                            <TranslateTransform x:Name="AuroraC" />
+                        </RadialGradientBrush.RelativeTransform>
+                        <GradientStop Color="#1FDB2777" Offset="0" />
+                        <GradientStop Color="#00DB2777" Offset="1" />
+                    </RadialGradientBrush>
+                </Rectangle.Fill>
+            </Rectangle>
+            <!-- Eine Kachelhöhe länger als das Fenster: nach einer Kachel Weg springt die Animation unsichtbar an den Anfang. -->
+            <Rectangle x:Name="DustFarLayer" Fill="{StaticResource DustFar}" Margin="0,0,0,-520" Opacity="0.3">
+                <Rectangle.RenderTransform>
+                    <TranslateTransform x:Name="DustFarShift" />
+                </Rectangle.RenderTransform>
+            </Rectangle>
+            <Rectangle x:Name="DustNearLayer" Fill="{StaticResource DustNear}" Margin="0,0,0,-700" Opacity="0.5">
+                <Rectangle.RenderTransform>
+                    <TranslateTransform x:Name="DustNearShift" />
+                </Rectangle.RenderTransform>
+            </Rectangle>
         </Grid>
 
         <!-- Seitenleiste -->
@@ -746,7 +991,7 @@
                     </StackPanel.RenderTransform>
 
                     <!-- Banner der Startseite, randlos bis unter die Titelleiste: zuletzt gestartet, sonst Favorit, sonst ein Spiel des Tages. -->
-                    <Grid x:Name="Hero" Height="540" Visibility="Collapsed" ClipToBounds="True">
+                    <Grid x:Name="Hero" Height="540" Visibility="Collapsed" ClipToBounds="True" MouseMove="OnHeroMouseMove">
                         <!-- Maske statt Verlauf in Hintergrundfarbe: so läuft das Bild nahtlos in den Farbschein dahinter aus. -->
                         <Grid>
                             <Grid.OpacityMask>
@@ -772,11 +1017,33 @@
                                 <Image Source="{Binding IconWash}" Stretch="Fill" Opacity="0.7" RenderOptions.BitmapScalingMode="Linear" />
                                 <Image Source="{Binding Icon}" Width="128" Height="128" RenderOptions.BitmapScalingMode="HighQuality" />
                             </Grid>
-                            <Image x:Name="HeroImage" Stretch="UniformToFill" VerticalAlignment="Center">
+                            <!-- Grundzoom 1.06: die Maus-Parallaxe verschiebt das Bild, ohne dass seine Kante sichtbar wird. -->
+                            <Image x:Name="HeroImage" Stretch="UniformToFill" VerticalAlignment="Center" RenderTransformOrigin="0.5,0.5">
                                 <Image.RenderTransform>
-                                    <TranslateTransform x:Name="HeroParallax" />
+                                    <TransformGroup>
+                                        <ScaleTransform x:Name="HeroZoom" ScaleX="1.06" ScaleY="1.06" />
+                                        <TranslateTransform x:Name="HeroParallax" />
+                                    </TransformGroup>
                                 </Image.RenderTransform>
                             </Image>
+                            <Rectangle Fill="{StaticResource DustNear}" Margin="0,0,0,-700" Opacity="0.75">
+                                <Rectangle.RenderTransform>
+                                    <TranslateTransform x:Name="HeroDustShift" />
+                                </Rectangle.RenderTransform>
+                            </Rectangle>
+                            <!-- Lichtkegel, der in Abständen über das Bild zieht. -->
+                            <Rectangle>
+                                <Rectangle.Fill>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0.45">
+                                        <LinearGradientBrush.RelativeTransform>
+                                            <TranslateTransform x:Name="HeroBeamShift" X="-1.3" />
+                                        </LinearGradientBrush.RelativeTransform>
+                                        <GradientStop Color="#00FFFFFF" Offset="0.36" />
+                                        <GradientStop Color="#2BFFFFFF" Offset="0.5" />
+                                        <GradientStop Color="#00FFFFFF" Offset="0.64" />
+                                    </LinearGradientBrush>
+                                </Rectangle.Fill>
+                            </Rectangle>
                             </Grid>
                             <Rectangle>
                                 <Rectangle.Fill>
@@ -788,7 +1055,10 @@
                                 </Rectangle.Fill>
                             </Rectangle>
                         </Grid>
-                        <StackPanel VerticalAlignment="Bottom" Margin="40,0,40,48" TextElement.Foreground="White">
+                        <StackPanel x:Name="HeroContent" VerticalAlignment="Bottom" Margin="40,0,40,48" TextElement.Foreground="White">
+                            <StackPanel.RenderTransform>
+                                <TranslateTransform x:Name="HeroContentShift" />
+                            </StackPanel.RenderTransform>
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
                                 <Ellipse x:Name="HeroDot" Width="8" Height="8" Margin="0,0,9,0" VerticalAlignment="Center" />
                                 <TextBlock x:Name="HeroLabel" FontSize="12" FontWeight="SemiBold" />
@@ -824,8 +1094,20 @@
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
                                     <StackPanel Margin="0,0,0,18">
-                                        <TextBlock x:Name="Header" Text="{Binding Title}" FontFamily="{StaticResource DisplayFont}" FontSize="20"
-                                                   FontWeight="SemiBold" Margin="0,0,0,14" />
+                                        <DockPanel x:Name="Header" Margin="0,0,0,14">
+                                            <Border DockPanel.Dock="Left" Width="4" Height="18" CornerRadius="2" Margin="0,0,10,0"
+                                                    Background="{StaticResource BrandBrush}" />
+                                            <TextBlock DockPanel.Dock="Left" Text="{Binding Title}" FontFamily="{StaticResource DisplayFont}" FontSize="20"
+                                                       FontWeight="SemiBold" />
+                                            <Rectangle Height="1" Margin="16,3,0,0">
+                                                <Rectangle.Fill>
+                                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                        <GradientStop Color="#40FFFFFF" Offset="0" />
+                                                        <GradientStop Color="#00FFFFFF" Offset="1" />
+                                                    </LinearGradientBrush>
+                                                </Rectangle.Fill>
+                                            </Rectangle>
+                                        </DockPanel>
                                         <!-- Negativer Rand schluckt den Abstand rechts der letzten Kachel einer Zeile. -->
                                         <ItemsControl ItemsSource="{Binding Items}" ItemTemplate="{StaticResource TileTemplate}" Focusable="False"
                                                       Margin="0,0,-20,0">
@@ -915,7 +1197,7 @@
         <!-- Dialoge im Fenster statt Windows-Meldungen: passen zum Design und bleiben im Vollbild im Bild (siehe ShowDialogCard). -->
         <Grid x:Name="DialogHost" Grid.ColumnSpan="2" Visibility="Collapsed" Background="#B3050609"
               KeyboardNavigation.TabNavigation="Cycle" KeyboardNavigation.DirectionalNavigation="Cycle">
-            <Border Width="440" HorizontalAlignment="Center" VerticalAlignment="Center" CornerRadius="16" Padding="28,24"
+            <Border x:Name="DialogCard" Width="440" HorizontalAlignment="Center" VerticalAlignment="Center" CornerRadius="16" Padding="28,24"
                     Background="#14151D" BorderBrush="{StaticResource GlassStrokeBrush}" BorderThickness="1">
                 <Border.Effect>
                     <DropShadowEffect BlurRadius="48" ShadowDepth="16" Direction="270" Opacity="0.6" />
@@ -930,6 +1212,50 @@
                     </StackPanel>
                 </StackPanel>
             </Border>
+        </Grid>
+
+        <!-- Startsequenz: Titelbild zoomt zurück, Lichtringe laufen nach außen, dann verschwindet das Fenster. -->
+        <Grid x:Name="LaunchOverlay" Grid.ColumnSpan="2" Visibility="Collapsed" ClipToBounds="True" Background="{StaticResource CanvasBrush}"
+              TextElement.Foreground="White">
+            <Image Source="{Binding IconWash}" Stretch="Fill" Opacity="0.6" RenderOptions.BitmapScalingMode="Linear" />
+            <Image x:Name="LaunchArt" Stretch="UniformToFill" RenderTransformOrigin="0.5,0.5">
+                <Image.RenderTransform>
+                    <ScaleTransform x:Name="LaunchZoom" />
+                </Image.RenderTransform>
+            </Image>
+            <Rectangle>
+                <Rectangle.Fill>
+                    <RadialGradientBrush>
+                        <GradientStop Color="#590B0C11" Offset="0" />
+                        <GradientStop Color="#F00B0C11" Offset="1" />
+                    </RadialGradientBrush>
+                </Rectangle.Fill>
+            </Rectangle>
+            <Grid Width="220" Height="220" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Ellipse x:Name="LaunchRingA" Stroke="{StaticResource BrandBrush}" StrokeThickness="3" Opacity="0" RenderTransformOrigin="0.5,0.5">
+                    <Ellipse.RenderTransform>
+                        <ScaleTransform x:Name="LaunchRingAScale" />
+                    </Ellipse.RenderTransform>
+                </Ellipse>
+                <Ellipse x:Name="LaunchRingB" Stroke="White" StrokeThickness="2" Opacity="0" RenderTransformOrigin="0.5,0.5">
+                    <Ellipse.RenderTransform>
+                        <ScaleTransform x:Name="LaunchRingBScale" />
+                    </Ellipse.RenderTransform>
+                </Ellipse>
+            </Grid>
+            <StackPanel x:Name="LaunchContent" HorizontalAlignment="Center" VerticalAlignment="Center" RenderTransformOrigin="0.5,0.5">
+                <StackPanel.RenderTransform>
+                    <ScaleTransform x:Name="LaunchContentScale" />
+                </StackPanel.RenderTransform>
+                <Image x:Name="LaunchLogo" MaxHeight="150" MaxWidth="520" Stretch="Uniform" />
+                <StackPanel x:Name="LaunchFallback">
+                    <Image Source="{Binding Icon}" Width="96" Height="96" RenderOptions.BitmapScalingMode="HighQuality" />
+                    <TextBlock Text="{Binding DisplayName}" FontFamily="{StaticResource DisplayFont}" FontSize="36" FontWeight="Bold"
+                               Margin="0,16,0,0" HorizontalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="680" />
+                </StackPanel>
+                <TextBlock Text="Wird gestartet …" FontSize="14" Opacity="0.75" Margin="0,16,0,0" HorizontalAlignment="Center" />
+            </StackPanel>
+            <Rectangle x:Name="LaunchFlash" Fill="White" Opacity="0" />
         </Grid>
     </Grid>
 </Window>
