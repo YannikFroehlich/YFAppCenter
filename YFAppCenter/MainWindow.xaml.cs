@@ -59,6 +59,7 @@ public partial class MainWindow : Window
         StartFullscreenBox.IsChecked = settings.StartFullscreen;
         FullscreenAtLogonBox.IsChecked = settings.FullscreenAtLogon;
         FullscreenAtLogonBox.IsEnabled = Autostart.IsEnabled;
+        SortBox.SelectedItem = SortBox.Items.OfType<ComboBoxItem>().FirstOrDefault(item => (string)item.Tag == settings.Sort) ?? SortBox.Items[0];
         SetUpTray();
         IsVisibleChanged += OnVisibilityChanged;
         var atLogon = Environment.GetCommandLineArgs().Contains(Autostart.MinimizedArgument);
@@ -155,367 +156,6 @@ public partial class MainWindow : Window
 
     private void OnUpdateRestartClick(object sender, RoutedEventArgs e) => AppUpdater.ApplyAndRestart();
 
-    // Minimiert verschwindet das Fenster aus der Taskleiste und bleibt über das Tray-Symbol erreichbar.
-    private readonly System.Windows.Forms.NotifyIcon tray = new() { Text = "YF AppCenter" };
-    private readonly System.Windows.Forms.ToolStripMenuItem trayUpdateItem = new() { Available = false };
-
-    private void SetUpTray()
-    {
-        using (var icon = Application.GetResourceStream(new Uri("pack://application:,,,/AppCenter.ico")).Stream)
-        {
-            tray.Icon = new System.Drawing.Icon(icon, System.Windows.Forms.SystemInformation.SmallIconSize);
-        }
-
-        trayUpdateItem.Click += (_, _) => AppUpdater.ApplyAndRestart();
-        tray.BalloonTipClicked += (_, _) => AppUpdater.ApplyAndRestart();
-        tray.ContextMenuStrip = new System.Windows.Forms.ContextMenuStrip
-        {
-            Items =
-            {
-                trayUpdateItem,
-                { "Öffnen", null, (_, _) => BringToFront() },
-                { "Beenden", null, (_, _) => Close() }
-            }
-        };
-        tray.MouseClick += (_, e) =>
-        {
-            if (e.Button == System.Windows.Forms.MouseButtons.Left)
-            {
-                BringToFront();
-            }
-        };
-        tray.Visible = true;
-        // Sonst bleibt das Symbol nach dem Beenden stehen, bis die Maus darüberfährt.
-        Closed += (_, _) => tray.Dispose();
-    }
-
-    protected override void OnStateChanged(EventArgs e)
-    {
-        base.OnStateChanged(e);
-        if (WindowState == WindowState.Minimized)
-        {
-            Hide();
-            return;
-        }
-
-        var maximized = WindowState == WindowState.Maximized;
-        MaximizeGlyph.Text = maximized ? "" : "";
-        MaximizeButton.ToolTip = maximized ? "Verkleinern" : "Maximieren";
-        FitMaximized();
-    }
-
-    /// <summary>
-    /// Maximiert legt Windows den Fensterrahmen außerhalb des Bildschirms an. Ohne eigene Titelleiste gehört er oben
-    /// ganz und an den übrigen Seiten teilweise zum Inhalt; so viel Abstand halten, wie tatsächlich übersteht.
-    /// </summary>
-    private void FitMaximized()
-    {
-        var hwnd = new WindowInteropHelper(this).Handle;
-        // Im Vollbild gibt es keinen Rahmen; die Taskleiste würde hier sonst als Überstand zählen.
-        if (fullscreen || WindowState != WindowState.Maximized || !GetClientRect(hwnd, out var client))
-        {
-            Root.Margin = default;
-            return;
-        }
-
-        var origin = PointToScreen(new Point(0, 0));
-        var work = System.Windows.Forms.Screen.FromHandle(hwnd).WorkingArea;
-        var dpi = VisualTreeHelper.GetDpi(this);
-        Root.Margin = new Thickness(
-            Math.Max(0, work.Left - origin.X) / dpi.DpiScaleX,
-            Math.Max(0, work.Top - origin.Y) / dpi.DpiScaleY,
-            Math.Max(0, origin.X + client.Right - work.Right) / dpi.DpiScaleX,
-            Math.Max(0, origin.Y + client.Bottom - work.Bottom) / dpi.DpiScaleY);
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct Rect32
-    {
-        public int Left, Top, Right, Bottom;
-    }
-
-    [DllImport("user32.dll")]
-    private static extern bool GetClientRect(IntPtr hwnd, out Rect32 rect);
-
-    private void OnMinimizeClick(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
-
-    private void OnMaximizeClick(object sender, RoutedEventArgs e) =>
-        WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
-
-    private void OnCloseClick(object sender, RoutedEventArgs e) => Close();
-
-    private void OnFullscreenClick(object sender, RoutedEventArgs e) => SetFullscreen(!fullscreen);
-
-    /// <summary>
-    /// Echtes Vollbild über der Taskleiste: nur ein maximiertes Fenster ohne Rahmen deckt sie ab. Dafür muss die
-    /// eigene Titelleiste (WindowChrome) weichen; die Knöpfe im Fenster bleiben.
-    /// </summary>
-    private void SetFullscreen(bool on)
-    {
-        if (on == fullscreen)
-        {
-            return;
-        }
-
-        if (on)
-        {
-            stateBeforeFullscreen = WindowState;
-        }
-
-        fullscreen = on;
-        // Windows berechnet die Größe nur beim Wechsel neu; ein schon maximiertes Fenster bliebe sonst über der Taskleiste stehen.
-        WindowState = WindowState.Normal;
-        System.Windows.Shell.WindowChrome.SetWindowChrome(this, on ? null : windowFrame);
-        WindowStyle = on ? WindowStyle.None : WindowStyle.SingleBorderWindow;
-        ResizeMode = on ? ResizeMode.NoResize : ResizeMode.CanResize;
-        WindowState = on ? WindowState.Maximized : stateBeforeFullscreen;
-        FullscreenGlyph.Text = on ? "" : "";
-        FullscreenButton.ToolTip = on ? "Vollbild beenden (F11)" : "Vollbild (F11)";
-        MaximizeButton.Visibility = on ? Visibility.Collapsed : Visibility.Visible;
-    }
-
-    protected override void OnPreviewKeyDown(KeyEventArgs e)
-    {
-        base.OnPreviewKeyDown(e);
-        if (e.Key == Key.F11)
-        {
-            SetFullscreen(!fullscreen);
-            e.Handled = true;
-        }
-        else if (e.Key == Key.Escape && dialogFrame is not null)
-        {
-            CloseDialog(false);
-            e.Handled = true;
-        }
-        else if (e.Key == Key.Enter && dialogFrame is not null && DialogInput.IsKeyboardFocused)
-        {
-            CloseDialog(true);
-            e.Handled = true;
-        }
-    }
-
-    /// <summary>
-    /// Im Infobereich auf Software-Rendering umschalten: dann gibt der Grafiktreiber seinen Speicher im
-    /// App-Prozess frei (gemessen gut 200 MB). Sichtbar wieder per Grafikkarte, damit Scrollen flüssig bleibt.
-    /// </summary>
-    private void OnVisibilityChanged(object sender, DependencyPropertyChangedEventArgs e)
-    {
-        if (PresentationSource.FromVisual(this) is System.Windows.Interop.HwndSource { CompositionTarget: { } target })
-        {
-            target.RenderMode = IsVisible ? System.Windows.Interop.RenderMode.Default : System.Windows.Interop.RenderMode.SoftwareOnly;
-        }    }
-
-    /// <summary>Holt das Fenster aus dem Infobereich nach vorne, etwa bei einem zweiten Start der App.</summary>
-    public void BringToFront()
-    {
-        Show();
-        if (WindowState == WindowState.Minimized)
-        {
-            // Stellt auch ein vorher maximiertes Fenster wieder maximiert her.
-            SystemCommands.RestoreWindow(this);
-            if (fullscreen)
-            {
-                // Nach dem Autostart war das Fenster noch nie sichtbar, Windows kennt also nur die normale Größe.
-                WindowState = WindowState.Maximized;
-            }
-        }
-
-        Activate();
-    }
-
-    // Controller: nur abfragen, solange das Fenster im Vordergrund ist. Ohne Controller seltener,
-    // weil XInput leere Anschlüsse vergleichsweise langsam abfragt.
-    private readonly System.Windows.Threading.DispatcherTimer padTimer = new(System.Windows.Threading.DispatcherPriority.Input);
-    private readonly GamepadNavigator pad = new();
-    private bool padConnected;
-
-    private void PollGamepad()
-    {
-        var state = XInput.ReadFirst();
-        var connected = state is not null;
-        padTimer.Interval = TimeSpan.FromMilliseconds(connected ? 33 : 1000);
-        if (connected != padConnected)
-        {
-            padConnected = connected;
-            PadHints.Visibility = connected ? Visibility.Visible : Visibility.Collapsed;
-            if (connected)
-            {
-                // Tasten, die beim Anschließen schon gedrückt sind, nicht auslösen.
-                pad.Reset(state!.Value.Buttons);
-                return;
-            }
-        }
-
-        if (state is not { } current)
-        {
-            return;
-        }
-
-        foreach (var action in pad.Update(current.Buttons, current.ThumbLX, current.ThumbLY, Environment.TickCount64))
-        {
-            HandlePadAction(action);
-        }
-    }
-
-    private void HandlePadAction(PadAction action)
-    {
-        if (dialogFrame is not null && action is PadAction.Favorite or PadAction.Menu or PadAction.PreviousSection or PadAction.NextSection)
-        {
-            return;
-        }
-
-        var focused = Keyboard.FocusedElement as FrameworkElement;
-        var openMenu = focused is null ? null : FindAncestor<ContextMenu>(focused);
-        switch (action)
-        {
-            case PadAction.Up or PadAction.Down or PadAction.Left or PadAction.Right:
-                var direction = action switch
-                {
-                    PadAction.Up => FocusNavigationDirection.Up,
-                    PadAction.Down => FocusNavigationDirection.Down,
-                    PadAction.Left => FocusNavigationDirection.Left,
-                    _ => FocusNavigationDirection.Right
-                };
-                if (focused is null || (focused == SearchBox && action == PadAction.Down && !focused.MoveFocus(new TraversalRequest(direction))))
-                {
-                    FocusTile(visible.FirstOrDefault());
-                }
-                else
-                {
-                    focused.MoveFocus(new TraversalRequest(direction));
-                }
-
-                (Keyboard.FocusedElement as FrameworkElement)?.BringIntoView();
-                break;
-
-            case PadAction.Activate when focused is not null:
-                Invoke(focused);
-                break;
-
-            case PadAction.Back:
-                if (dialogFrame is not null)
-                {
-                    CloseDialog(false);
-                }
-                else if (openMenu is not null)
-                {
-                    openMenu.IsOpen = false;
-                }
-                else if (SearchBox.Text.Length > 0)
-                {
-                    SearchBox.Clear();
-                }
-                else if (filter != "all")
-                {
-                    HomeNav.IsChecked = true;
-                }
-                else
-                {
-                    WindowState = WindowState.Minimized;
-                }
-
-                break;
-
-            case PadAction.Favorite when focused is Button { DataContext: LibraryEntry entry } && IsTile(focused):
-                entry.Favorite = !entry.Favorite;
-                SaveAndRefresh();
-                break;
-
-            case PadAction.Menu when focused is Button tile && IsTile(tile):
-                FillTileMenu(tile);
-                tile.ContextMenu!.PlacementTarget = tile;
-                tile.ContextMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
-                tile.ContextMenu.IsOpen = true;
-                Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Input,
-                    () => (tile.ContextMenu.Items.OfType<MenuItem>().FirstOrDefault())?.Focus());
-                break;
-
-            case PadAction.PreviousSection or PadAction.NextSection:
-                var navItems = NavItems().ToList();
-                var current = navItems.FindIndex(item => item.IsChecked == true);
-                var next = current + (action == PadAction.NextSection ? 1 : -1);
-                if (next >= 0 && next < navItems.Count)
-                {
-                    navItems[next].IsChecked = true;
-                    navItems[next].Focus();
-                }
-
-                break;
-        }
-    }
-
-    /// <summary>Löst ein Bedienelement so aus, wie es die Sprachausgabe tun würde.</summary>
-    private static void Invoke(UIElement element)
-    {
-        var peer = System.Windows.Automation.Peers.UIElementAutomationPeer.CreatePeerForElement(element);
-        switch (peer?.GetPattern(System.Windows.Automation.Peers.PatternInterface.Invoke)
-                ?? peer?.GetPattern(System.Windows.Automation.Peers.PatternInterface.SelectionItem)
-                ?? peer?.GetPattern(System.Windows.Automation.Peers.PatternInterface.Toggle)
-                ?? peer?.GetPattern(System.Windows.Automation.Peers.PatternInterface.ExpandCollapse))
-        {
-            case System.Windows.Automation.Provider.IInvokeProvider invoke:
-                invoke.Invoke();
-                break;
-            case System.Windows.Automation.Provider.ISelectionItemProvider selection:
-                selection.Select();
-                break;
-            case System.Windows.Automation.Provider.IToggleProvider toggle:
-                toggle.Toggle();
-                break;
-            case System.Windows.Automation.Provider.IExpandCollapseProvider expand:
-                expand.Expand();
-                break;
-        }
-    }
-
-    private IEnumerable<RadioButton> NavItems() => FindDescendants<RadioButton>(HomeNav.Parent);
-
-    private bool IsTile(FrameworkElement element) => element.Style == FindResource("TileButton");
-
-    /// <summary>Setzt den Fokus auf die Kachel eines Eintrags, etwa nachdem die Ansicht neu aufgebaut wurde.</summary>
-    private void FocusTile(LibraryEntry? entry)
-    {
-        if (entry is null)
-        {
-            return;
-        }
-
-        var tile = FindDescendants<Button>(Sections).FirstOrDefault(button => button.DataContext == entry && IsTile(button));
-        tile?.Focus();
-        tile?.BringIntoView();
-    }
-
-    private static T? FindAncestor<T>(DependencyObject element) where T : DependencyObject
-    {
-        for (var current = element; current is not null;
-             current = System.Windows.Media.VisualTreeHelper.GetParent(current) ?? LogicalTreeHelper.GetParent(current))
-        {
-            if (current is T match)
-            {
-                return match;
-            }
-        }
-
-        return null;
-    }
-
-    private static IEnumerable<T> FindDescendants<T>(DependencyObject root) where T : DependencyObject
-    {
-        for (var index = 0; index < System.Windows.Media.VisualTreeHelper.GetChildrenCount(root); index++)
-        {
-            var child = System.Windows.Media.VisualTreeHelper.GetChild(root, index);
-            if (child is T match)
-            {
-                yield return match;
-            }
-
-            foreach (var descendant in FindDescendants<T>(child))
-            {
-                yield return descendant;
-            }
-        }
-    }
-
     /// <summary>Prüft alle paar Sekunden, welche Einträge gerade laufen; nur solange das Fenster sichtbar ist.</summary>
     private async Task UpdateRunningAsync()
     {
@@ -583,7 +223,14 @@ public partial class MainWindow : Window
         Dictionary<string, TimeSpan> playtime;
         try
         {
-            playtime = await Task.Run(() => PlaytimeReader.Read(PlaytimeReader.DatabasePath, DateTimeOffset.UtcNow));
+            var now = DateTimeOffset.Now;
+            // Woche ab Montag, Monat ab dem 1., jeweils 0 Uhr Ortszeit.
+            var weekStart = new DateTimeOffset(now.Date.AddDays(-(((int)now.DayOfWeek + 6) % 7)), now.Offset);
+            var monthStart = new DateTimeOffset(new DateTime(now.Year, now.Month, 1), now.Offset);
+            (playtime, weekPlaytime, monthPlaytime) = await Task.Run(() => (
+                PlaytimeReader.Read(PlaytimeReader.DatabasePath, now),
+                PlaytimeReader.Read(PlaytimeReader.DatabasePath, now, weekStart),
+                PlaytimeReader.Read(PlaytimeReader.DatabasePath, now, monthStart)));
         }
         catch (Exception exception) when (exception is Microsoft.Data.Sqlite.SqliteException or IOException)
         {
@@ -600,7 +247,7 @@ public partial class MainWindow : Window
         }
 
         // Neu aufbauen, damit „Meistgespielt“ die neue Reihenfolge zeigt.
-        if (changed)
+        if (changed || filter == "playtime")
         {
             Refresh();
         }
@@ -617,6 +264,14 @@ public partial class MainWindow : Window
     private const string CategoryPrefix = "cat:";
 
     private List<CategoryItem> shownCategories = [];
+
+    // Spielzeit dieser Woche und dieses Monats aus YFTimeTracker, für die Seite „Spielzeit“.
+    private Dictionary<string, TimeSpan> weekPlaytime = [];
+    private Dictionary<string, TimeSpan> monthPlaytime = [];
+
+    private const string AllSources = "Alle Launcher";
+    private string sourceFilter = AllSources;
+    private bool updatingFilters;
 
     private string? SelectedCategory => filter.StartsWith(CategoryPrefix, StringComparison.Ordinal) ? filter[CategoryPrefix.Length..] : null;
 
@@ -660,6 +315,17 @@ public partial class MainWindow : Window
         BuildCategoryNav(categories);
         CategoryHeader.Visibility = categories.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
 
+        var isHome = filter == "all" && query.Length == 0;
+        var sources = pool.Select(entry => entry.SourceName).Distinct().Order(StringComparer.CurrentCultureIgnoreCase).Prepend(AllSources).ToList();
+        if (SourceBox.ItemsSource is not List<string> shownSources || !shownSources.SequenceEqual(sources))
+        {
+            updatingFilters = true;
+            SourceBox.ItemsSource = sources;
+            SourceBox.SelectedItem = sources.Contains(sourceFilter) ? sourceFilter : AllSources;
+            sourceFilter = (string)SourceBox.SelectedItem;
+            updatingFilters = false;
+        }
+
         var matches = pool
             .Where(entry => filter switch
             {
@@ -667,14 +333,23 @@ public partial class MainWindow : Window
                 "apps" => !entry.IsGame,
                 "favorites" => entry.Favorite,
                 "recent" => entry.LastLaunched is not null,
+                "playtime" => entry.Playtime is not null,
                 _ when SelectedCategory is { } category => entry.Category == category,
                 _ => true
             })
             .Where(entry => entry.DisplayName.Contains(query, StringComparison.CurrentCultureIgnoreCase))
+            // Der Launcher-Filter steht in der Seitenüberschrift; die Startseite hat keine und zeigt immer alles.
+            .Where(entry => isHome || sourceFilter == AllSources || entry.SourceName == sourceFilter)
             .ToList();
         var byName = matches.OrderBy(entry => entry.DisplayName, StringComparer.CurrentCultureIgnoreCase).ToList();
         var recent = matches.Where(entry => entry.LastLaunched is not null).OrderByDescending(entry => entry.LastLaunched);
-        var isHome = filter == "all" && query.Length == 0;
+        // OrderBy ist stabil: bei Gleichstand bleibt die alphabetische Reihenfolge.
+        IEnumerable<LibraryEntry> sorted = settings.Sort switch
+        {
+            "recent" => byName.OrderByDescending(entry => entry.LastLaunched ?? DateTime.MinValue),
+            "playtime" => byName.OrderByDescending(entry => entry.Playtime ?? TimeSpan.Zero),
+            _ => byName.OrderByDescending(entry => entry.Favorite)
+        };
         // Vor den Bereichen, denn das Spiel im Banner soll nicht direkt darunter noch einmal auftauchen.
         UpdateHero(pool, isHome);
 
@@ -694,8 +369,22 @@ public partial class MainWindow : Window
                 new("Programme", byName.Where(entry => !entry.IsGame && entry.Category is null).ToList())
             ],
             "recent" => [new("", recent.Take(RecentCount).ToList())],
-            _ => [new("", byName.OrderByDescending(entry => entry.Favorite).ToList())]
+            "playtime" =>
+            [
+                PlaytimeSection("Diese Woche", weekPlaytime),
+                PlaytimeSection("Dieser Monat", monthPlaytime),
+                PlaytimeSection("Insgesamt", matches.ToDictionary(entry => entry.Id, entry => entry.Playtime!.Value))
+            ],
+            _ => [new("", sorted.ToList())]
         };
+
+        // Titel mit der Summe des Zeitraums; Kacheln darunter nach ihrem Anteil sortiert.
+        Section PlaytimeSection(string title, Dictionary<string, TimeSpan> times)
+        {
+            var played = matches.Where(entry => times.ContainsKey(entry.Id)).OrderByDescending(entry => times[entry.Id]).ToList();
+            var total = played.Aggregate(TimeSpan.Zero, (sum, entry) => sum + times[entry.Id]);
+            return new($"{title}  ·  {LibraryEntry.FormatPlaytime(total)}", played);
+        }
         sections.RemoveAll(section => section.Items.Count == 0);
         visible = sections.SelectMany(section => section.Items).ToList();
         Sections.ItemsSource = sections;
@@ -706,6 +395,7 @@ public partial class MainWindow : Window
         {
             "favorites" => "Favoriten",
             "recent" => "Zuletzt gestartet",
+            "playtime" => "Spielzeit",
             "games" => "Spiele",
             "apps" => "Programme",
             _ when SelectedCategory is { } category => category,
@@ -720,6 +410,8 @@ public partial class MainWindow : Window
         PageSubtitle.Text = isHome
             ? $"{pool.Count(entry => entry.IsGame)} Spiele · {pool.Count(entry => !entry.IsGame)} Programme"
             : matches.Count == 1 ? "1 Eintrag" : $"{matches.Count} Einträge";
+        // Auf „Zuletzt gestartet“ und „Spielzeit“ ergibt sich die Reihenfolge aus der Seite selbst.
+        SortBox.Visibility = filter is "recent" or "playtime" ? Visibility.Collapsed : Visibility.Visible;
 
         EmptyState.Visibility = visible.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         EmptyActions.Visibility = pool.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -728,6 +420,8 @@ public partial class MainWindow : Window
             (true, _) => ("", "Keine Treffer", $"Nichts passt zu „{query}“."),
             (_, "favorites") => ("", "Noch keine Favoriten", "Rechtsklick auf eine Kachel und „Zu Favoriten hinzufügen“."),
             (_, "recent") => ("", "Noch nichts gestartet", "Alles, was du hier startest, taucht in dieser Liste auf."),
+            (_, "playtime") => ("", "Noch keine Spielzeit", "Die Spielzeit kommt aus YFTimeTracker. Ist er installiert, erscheint sie nach dem ersten Spielen hier."),
+            _ when sourceFilter != AllSources => ("", "Keine Treffer", $"Hier gibt es nichts von {sourceFilter}."),
             _ => ("", "Noch nichts hier", "Programme oder Desktop-Verknüpfungen einfach ins Fenster ziehen.")
         };
 
@@ -844,6 +538,11 @@ public partial class MainWindow : Window
         try
         {
             Library.Launch(entry.LaunchTarget);
+            if (padConnected)
+            {
+                _ = XInput.RumbleAsync(TimeSpan.FromMilliseconds(250));
+            }
+
             entry.LastLaunched = DateTime.Now;
             SaveAndRefresh();
         }
@@ -1103,6 +802,92 @@ public partial class MainWindow : Window
 
     private void OnTileClick(object sender, RoutedEventArgs e) => Launch((LibraryEntry)((Button)sender).DataContext);
 
+    private void OnSortChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (SortBox.SelectedItem is ComboBoxItem { Tag: string sort } && sort != settings.Sort)
+        {
+            settings.Sort = sort;
+            settings.Save();
+            Refresh();
+        }
+    }
+
+    private void OnSourceChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!updatingFilters && SourceBox.SelectedItem is string source)
+        {
+            sourceFilter = source;
+            Refresh();
+        }
+    }
+
+    /// <summary>„Was spiel ich?“: schlägt ein zufälliges sichtbares Spiel vor.</summary>
+    private void OnRandomClick(object sender, RoutedEventArgs e)
+    {
+        var games = library.Where(entry => entry.IsGame && !entry.Hidden).ToList();
+        if (games.Count == 0)
+        {
+            ShowDialogCard("Keine Spiele gefunden", "Sobald installierte Spiele erkannt sind, schlägt dieser Knopf eins vor.");
+            return;
+        }
+
+        var pick = games[Random.Shared.Next(games.Count)];
+        if (ShowDialogCard($"Wie wär's mit „{pick.DisplayName}“?", pick.Subtitle, "Spielen", "Nein danke"))
+        {
+            Launch(pick);
+        }
+    }
+
+    private void OnExportClick(object sender, RoutedEventArgs e)
+    {
+        var dialog = new SaveFileDialog
+        {
+            Title = "Bibliothek sichern",
+            FileName = $"YFAppCenter-Sicherung-{DateTime.Now:yyyy-MM-dd}.zip",
+            Filter = "Sicherung|*.zip"
+        };
+        if (dialog.ShowDialog(this) != true)
+        {
+            return;
+        }
+
+        try
+        {
+            Library.Save(library);
+            Library.Export(dialog.FileName);
+            ShowDialogCard("Bibliothek gesichert", $"Favoriten, Kategorien, eigene Einträge und Cover stehen in {dialog.FileName}.");
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            ShowDialogCard("Sichern fehlgeschlagen", exception.Message);
+        }
+    }
+
+    private async void OnImportClick(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFileDialog { Title = "Bibliothek wiederherstellen", Filter = "Sicherung|*.zip" };
+        if (dialog.ShowDialog(this) != true
+            || !ShowDialogCard("Bibliothek wiederherstellen?",
+                "Favoriten, Kategorien, eigene Einträge und Cover werden durch die Sicherung ersetzt. Danach sucht die App die installierten Spiele neu.",
+                "Wiederherstellen", "Abbrechen"))
+        {
+            return;
+        }
+
+        try
+        {
+            Library.Import(dialog.FileName);
+        }
+        catch (Exception exception) when (exception is IOException or InvalidDataException or UnauthorizedAccessException)
+        {
+            ShowDialogCard("Wiederherstellen fehlgeschlagen", exception.Message);
+            return;
+        }
+
+        library = Library.Load();
+        await RescanAsync();
+    }
+
     private void OnAddClick(object sender, RoutedEventArgs e)
     {
         var dialog = new OpenFileDialog
@@ -1152,271 +937,4 @@ public partial class MainWindow : Window
             AddFiles(paths);
         }
     }
-
-    private void OnTileContextMenuOpening(object sender, ContextMenuEventArgs e)
-    {
-        var tile = (Button)sender;
-        tile.ContextMenu!.Placement = System.Windows.Controls.Primitives.PlacementMode.MousePoint;
-        FillTileMenu(tile);
-    }
-
-    private void FillTileMenu(Button tile)
-    {
-        var entry = (LibraryEntry)tile.DataContext;
-        var menu = tile.ContextMenu!;
-        menu.Items.Clear();
-
-        void Add(string header, Action action, bool enabled = true)
-        {
-            var item = new MenuItem { Header = header, IsEnabled = enabled };
-            item.Click += (_, _) => action();
-            menu.Items.Add(item);
-        }
-
-        Add("Starten", () => Launch(entry));
-        if (entry.IsRunning)
-        {
-            Add("Beenden …", async () => await StopAsync(entry));
-        }
-
-        Add(entry.Favorite ? "Aus Favoriten entfernen" : "Zu Favoriten hinzufügen", () =>
-        {
-            entry.Favorite = !entry.Favorite;
-            SaveAndRefresh();
-        });
-        if (entry.LastLaunched is not null)
-        {
-            Add("Aus „Zuletzt“ entfernen", () =>
-            {
-                entry.LastLaunched = null;
-                SaveAndRefresh();
-            });
-        }
-
-        menu.Items.Add(new Separator());
-        Add("Umbenennen …", () =>
-        {
-            if (Prompt("Umbenennen", entry.DisplayName) is { } name)
-            {
-                entry.CustomName = name.Length == 0 || name == entry.Name ? null : name;
-                SaveAndRefresh();
-            }
-        });
-        Add("Startziel ändern …", () => ChangeTarget(entry));
-        Add("Cover-Bild festlegen …", () => ChangeCover(entry));
-        if (entry.CustomCoverPath is not null)
-        {
-            Add("Cover-Bild entfernen", () =>
-            {
-                Library.DeleteImportedFile(entry.CustomCoverPath);
-                entry.CustomCoverPath = null;
-                SaveAndRefresh();
-            });
-        }
-
-        var location = File.Exists(entry.LaunchTarget) ? entry.LaunchTarget : entry.IconSource;
-        Add("Dateispeicherort öffnen", () => Process.Start("explorer.exe", $"/select,\"{location}\"")?.Dispose(),
-            File.Exists(location));
-        var categoryMenu = new MenuItem { Header = "Kategorie" };
-        foreach (var name in library.Select(other => other.Category).OfType<string>().Distinct().Order(StringComparer.CurrentCultureIgnoreCase))
-        {
-            var item = new MenuItem { Header = name, IsCheckable = true, IsChecked = entry.Category == name };
-            item.Click += (_, _) =>
-            {
-                entry.Category = entry.Category == name ? null : name;
-                SaveAndRefresh();
-            };
-            categoryMenu.Items.Add(item);
-        }
-
-        if (categoryMenu.Items.Count > 0)
-        {
-            categoryMenu.Items.Add(new Separator());
-        }
-
-        var newCategory = new MenuItem { Header = "Neue Kategorie …" };
-        newCategory.Click += (_, _) =>
-        {
-            if (Prompt("Neue Kategorie", "") is { Length: > 0 } name)
-            {
-                entry.Category = name;
-                SaveAndRefresh();
-            }
-        };
-        categoryMenu.Items.Add(newCategory);
-        menu.Items.Add(categoryMenu);
-        Add(entry.IsGame ? "Zu Programmen verschieben" : "Zu Spielen verschieben", () =>
-        {
-            entry.IsGame = !entry.IsGame;
-            SaveAndRefresh();
-        });
-        menu.Items.Add(new Separator());
-        if (entry.IsManual)
-        {
-            Add("Entfernen", () =>
-            {
-                library.Remove(entry);
-                SaveAndRefresh();
-                Library.DeleteImportedFiles(entry);
-            });
-        }
-        else
-        {
-            // Erkannte Spiele würden bei der nächsten Suche wieder auftauchen, daher nur ausblenden.
-            Add(entry.Hidden ? "Einblenden" : "Ausblenden", () =>
-            {
-                entry.Hidden = !entry.Hidden;
-                SaveAndRefresh();
-            });
-            Add("Deinstallieren …", async () => await UninstallAsync(entry));
-        }
-    }
-
-    private async Task StopAsync(LibraryEntry entry)
-    {
-        if (!ShowDialogCard($"„{entry.DisplayName}“ beenden?", "Nicht gespeicherter Fortschritt geht verloren.", "Beenden", "Abbrechen"))
-        {
-            return;
-        }
-
-        if (!await RunningDetector.StopAsync(entry))
-        {
-            ShowDialogCard($"„{entry.DisplayName}“ ließ sich nicht ganz beenden", "Vermutlich läuft es mit Administratorrechten.");
-        }
-
-        await UpdateRunningAsync();
-    }
-
-    private async Task UninstallAsync(LibraryEntry entry)
-    {
-        if (!ShowDialogCard($"„{entry.DisplayName}“ deinstallieren?", "Öffnet den Launcher oder das Deinstallationsprogramm des Spiels.", "Deinstallieren", "Abbrechen"))
-        {
-            return;
-        }
-
-        try
-        {
-            if (!await Uninstaller.StartAsync(entry))
-            {
-                ShowDialogCard("Kein Deinstallationsprogramm gefunden", $"Bitte „{entry.DisplayName}“ über {entry.SourceName} deinstallieren.");
-                return;
-            }
-        }
-        catch (Win32Exception exception) when (exception.NativeErrorCode == 1223)
-        {
-            // Nachfrage der Benutzerkontensteuerung abgelehnt.
-            return;
-        }
-        catch (Exception exception)
-        {
-            ShowDialogCard($"„{entry.DisplayName}“ konnte nicht deinstalliert werden", exception.Message);
-            return;
-        }
-
-        // Launcher und Deinstallationsprogramme arbeiten in eigenen Fenstern weiter; zurück in der App neu suchen.
-        rescanOnActivate = true;
-        await RescanAsync();
-    }
-
-    private void ChangeCover(LibraryEntry entry)
-    {
-        var dialog = new OpenFileDialog
-        {
-            Title = $"Cover-Bild für „{entry.DisplayName}“",
-            Filter = "Bilder|*.png;*.jpg;*.jpeg;*.webp;*.bmp;*.gif"
-        };
-        if (dialog.ShowDialog(this) != true)
-        {
-            return;
-        }
-
-        if (ImageCache.Load(dialog.FileName) is null)
-        {
-            ShowDialogCard("Dieses Bild kann nicht geöffnet werden", "");
-            return;
-        }
-
-        Library.DeleteImportedFile(entry.CustomCoverPath);
-        entry.CustomCoverPath = Library.ImportCover(dialog.FileName);
-        SaveAndRefresh();
-    }
-
-    private void ChangeTarget(LibraryEntry entry)
-    {
-        var dialog = new OpenFileDialog
-        {
-            Title = $"Startziel für „{entry.DisplayName}“",
-            Filter = "Programme und Verknüpfungen|*.exe;*.lnk;*.url;*.bat;*.cmd|Alle Dateien|*.*",
-            DereferenceLinks = false
-        };
-        if (entry.IconSource is { } current && File.Exists(current))
-        {
-            dialog.InitialDirectory = Path.GetDirectoryName(current);
-        }
-
-        if (dialog.ShowDialog(this) != true)
-        {
-            return;
-        }
-
-        Library.DeleteImportedFile(entry.CustomTarget);
-        (entry.CustomTarget, entry.CustomIconPath) = Library.ImportFile(dialog.FileName);
-        entry.Icon = null;
-        SaveAndRefresh();
-    }
-
-    private string? Prompt(string title, string value) =>
-        ShowDialogCard(title, "", "OK", "Abbrechen", value) ? DialogInput.Text.Trim() : null;
-
-    private System.Windows.Threading.DispatcherFrame? dialogFrame;
-    private bool dialogConfirmed;
-
-    /// <summary>Zeigt einen Dialog im Fenster und wartet wie eine MessageBox auf die Antwort; die Oberfläche läuft währenddessen weiter.</summary>
-    private bool ShowDialogCard(string title, string text, string confirm = "OK", string? cancel = null, string? input = null)
-    {
-        DialogTitle.Text = title;
-        DialogText.Text = text;
-        DialogText.Visibility = text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
-        DialogInput.Text = input ?? "";
-        DialogInput.Visibility = input is null ? Visibility.Collapsed : Visibility.Visible;
-        DialogConfirm.Content = confirm;
-        DialogCancel.Content = cancel;
-        DialogCancel.Visibility = cancel is null ? Visibility.Collapsed : Visibility.Visible;
-        var previousFocus = Keyboard.FocusedElement;
-        DialogHost.Visibility = Visibility.Visible;
-        Reveal(DialogCard, TimeSpan.Zero);
-        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, () =>
-        {
-            // Bei Rückfragen startet der Fokus auf „Abbrechen“, damit Enter oder die A-Taste nichts Unwiderrufliches auslöst.
-            if (input is not null)
-            {
-                DialogInput.Focus();
-                DialogInput.SelectAll();
-            }
-            else if (cancel is not null)
-            {
-                DialogCancel.Focus();
-            }
-            else
-            {
-                DialogConfirm.Focus();
-            }
-        });
-        dialogFrame = new System.Windows.Threading.DispatcherFrame();
-        System.Windows.Threading.Dispatcher.PushFrame(dialogFrame);
-        dialogFrame = null;
-        DialogHost.Visibility = Visibility.Collapsed;
-        previousFocus?.Focus();
-        return dialogConfirmed;
-    }
-
-    private void CloseDialog(bool confirmed)
-    {
-        dialogConfirmed = confirmed;
-        dialogFrame!.Continue = false;
-    }
-
-    private void OnDialogConfirmClick(object sender, RoutedEventArgs e) => CloseDialog(true);
-
-    private void OnDialogCancelClick(object sender, RoutedEventArgs e) => CloseDialog(false);
 }

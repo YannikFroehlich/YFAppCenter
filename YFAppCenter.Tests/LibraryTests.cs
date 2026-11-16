@@ -150,6 +150,8 @@ public sealed class LibraryTests
         Assert.IsNull(StoreArt.MatchAppId("Forza Horizon 6", [("Forza Horizon 5", 7)]));
         Assert.IsNull(StoreArt.MatchAppId("Minecraft Launcher", [("Minecraft Dungeons", 8)]));
         Assert.IsNull(StoreArt.MatchAppId("VALORANT", []));
+        Assert.IsNull(StoreArt.MatchAppId("Hollow Knight", [("Hollow Knight - Official Soundtrack", 9)]), "Kein Soundtrack als Spielbild.");
+        Assert.IsNull(StoreArt.MatchAppId("Anno 1800", [("Anno 1800 Season Pass 4", 10)]));
     }
 
     [TestMethod]
@@ -182,10 +184,56 @@ public sealed class LibraryTests
             Assert.AreEqual(TimeSpan.FromMinutes(60 + 30 + 10), playtime["Steam:570"], "Basis, gespeicherte und laufende Sitzung.");
             Assert.AreEqual(TimeSpan.FromMinutes(2), playtime["Epic:abc"], "Beendete Sitzung ohne gespeicherte Dauer.");
             Assert.AreEqual(2, playtime.Count, "Ohne Kennung kein Treffer, unter einer Minute nichts anzeigen.");
+
+            var lastHour = PlaytimeReader.Read(database, now, now.AddMinutes(-60));
+            Assert.AreEqual(TimeSpan.FromMinutes(10), lastHour["Steam:570"], "Ohne Basis, nur die laufende Sitzung.");
+            Assert.AreEqual(TimeSpan.FromMinutes(2), lastHour["Epic:abc"]);
+            var lastThreeHours = PlaytimeReader.Read(database, now, now.AddMinutes(-180));
+            Assert.AreEqual(TimeSpan.FromMinutes(10 + 10), lastThreeHours["Steam:570"], "Ältere Sitzung nur ab Beginn des Zeitraums.");
         }
         finally
         {
             File.Delete(database);
+        }
+    }
+
+    [TestMethod]
+    public void Backup_moves_library_and_covers_to_another_data_folder()
+    {
+        var oldFolder = Directory.CreateTempSubdirectory().FullName;
+        var newFolder = Directory.CreateTempSubdirectory().FullName;
+        var zip = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.zip");
+        try
+        {
+            var cover = Path.Combine(oldFolder, "Covers", "ä.png");
+            Directory.CreateDirectory(Path.GetDirectoryName(cover)!);
+            File.WriteAllBytes(cover, [1, 2, 3]);
+            var entry = new LibraryEntry { Id = "Steam:1", Name = "Spiel", Target = "steam://rungameid/1", CustomCoverPath = cover };
+            File.WriteAllText(Path.Combine(oldFolder, "library.json"), System.Text.Json.JsonSerializer.Serialize(new[] { entry }));
+            File.WriteAllText(Path.Combine(oldFolder, "settings.json"), "{}");
+
+            Library.Export(oldFolder, zip);
+            Library.Import(zip, newFolder);
+
+            var restored = System.Text.Json.JsonSerializer.Deserialize<List<LibraryEntry>>(File.ReadAllText(Path.Combine(newFolder, "library.json")))!;
+            Assert.AreEqual(Path.Combine(newFolder, "Covers", "ä.png"), restored.Single().CustomCoverPath);
+            CollectionAssert.AreEqual(new byte[] { 1, 2, 3 }, File.ReadAllBytes(restored.Single().CustomCoverPath!));
+            Assert.IsFalse(File.Exists(Path.Combine(newFolder, "settings.json")), "Einstellungen gehören zum PC.");
+
+            // Fremde .zip: nichts entpacken, sondern ablehnen.
+            File.Delete(zip);
+            using (var archive = System.IO.Compression.ZipFile.Open(zip, System.IO.Compression.ZipArchiveMode.Create))
+            {
+                archive.CreateEntry("readme.txt");
+            }
+
+            Assert.ThrowsExactly<InvalidDataException>(() => Library.Import(zip, newFolder));
+        }
+        finally
+        {
+            Directory.Delete(oldFolder, recursive: true);
+            Directory.Delete(newFolder, recursive: true);
+            File.Delete(zip);
         }
     }
 
@@ -198,6 +246,9 @@ public sealed class LibraryTests
         Assert.AreEqual((@"C:\Program Files\Game\Uninstall.EXE", "/S"), Uninstaller.SplitCommand(@" C:\Program Files\Game\Uninstall.EXE /S"));
         Assert.AreEqual(("MsiExec.exe", "/X{1234}"), Uninstaller.SplitCommand("MsiExec.exe /X{1234}"));
         Assert.AreEqual(("uplay://uninstall/635", ""), Uninstaller.SplitCommand("uplay://uninstall/635"));
+        // Battle.net-Startziel muss beim Starten wieder sauber zerfallen.
+        Assert.AreEqual((@"C:\Battle.net\Battle.net.exe", @"--exec=""launch_uid prometheus"""),
+            Uninstaller.SplitCommand(GameScanner.BattleNetLaunch(@"C:\Battle.net\Battle.net.exe", "prometheus")));
     }
 
     [TestMethod]

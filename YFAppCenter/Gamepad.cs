@@ -35,6 +35,33 @@ public static class XInput
     [DllImport("xinput1_4.dll", EntryPoint = "XInputGetState")]
     private static extern int GetState(int userIndex, out State state);
 
+    [StructLayout(LayoutKind.Sequential)]
+    private struct Vibration
+    {
+        public ushort LeftMotor;
+        public ushort RightMotor;
+    }
+
+    [DllImport("xinput1_4.dll", EntryPoint = "XInputSetState")]
+    private static extern int SetState(int userIndex, ref Vibration vibration);
+
+    /// <summary>Lässt alle angeschlossenen Controller kurz vibrieren, etwa beim Start eines Spiels.</summary>
+    public static async Task RumbleAsync(TimeSpan duration)
+    {
+        var on = new Vibration { LeftMotor = 24000, RightMotor = 32000 };
+        var off = new Vibration();
+        for (var index = 0; index < 4; index++)
+        {
+            SetState(index, ref on);
+        }
+
+        await Task.Delay(duration);
+        for (var index = 0; index < 4; index++)
+        {
+            SetState(index, ref off);
+        }
+    }
+
     /// <summary>Zustand des ersten angeschlossenen Controllers, sonst null.</summary>
     public static State? ReadFirst()
     {

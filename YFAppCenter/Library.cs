@@ -1,6 +1,7 @@
 ﻿using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
+using System.IO.Compression;
 using System.Net;
 using System.Net.Http;
 using System.Text.Json;
@@ -83,12 +84,10 @@ public sealed class LibraryEntry : INotifyPropertyChanged
     };
 
     [JsonIgnore]
-    public string Subtitle => Playtime switch
-    {
-        null => SourceName,
-        { TotalHours: < 1 } time => $"{SourceName} · {(int)time.TotalMinutes} Min.",
-        var time => $"{SourceName} · {time.Value.TotalHours:0.#} Std."
-    };
+    public string Subtitle => Playtime is { } time ? $"{SourceName} · {FormatPlaytime(time)}" : SourceName;
+
+    public static string FormatPlaytime(TimeSpan time) =>
+        time.TotalHours < 1 ? $"{(int)time.TotalMinutes} Min." : $"{time.TotalHours:0.#} Std.";
 
     [JsonIgnore]
     public ImageSource? Icon
@@ -195,6 +194,58 @@ public static class Library
         File.Move(temporary, LibraryFile, overwrite: true);
     }
 
+    // Sicherung für einen neuen PC: Bibliothek, eigene Cover, Verknüpfungskopien und Spielbilder.
+    // Einstellungen wie der Autostart gehören zum jeweiligen PC und bleiben draußen.
+    private static readonly string[] BackupParts = ["library.json", "Shortcuts", "Covers", "Art"];
+    private const string BackupOriginFile = "herkunft.txt";
+
+    public static void Export(string zipPath) => Export(DataFolder, zipPath);
+
+    public static void Import(string zipPath) => Import(zipPath, DataFolder);
+
+    internal static void Export(string dataFolder, string zipPath)
+    {
+        File.Delete(zipPath);
+        using var zip = ZipFile.Open(zipPath, ZipArchiveMode.Create);
+        foreach (var part in BackupParts.Select(part => Path.Combine(dataFolder, part)))
+        {
+            var files = File.Exists(part) ? [part]
+                : Directory.Exists(part) ? Directory.EnumerateFiles(part, "*", SearchOption.AllDirectories) : [];
+            foreach (var file in files)
+            {
+                zip.CreateEntryFromFile(file, Path.GetRelativePath(dataFolder, file).Replace('\\', '/'));
+            }
+        }
+
+        // Pfade in library.json zeigen in den Datenordner; beim Import wird er durch den des neuen PCs ersetzt.
+        using var origin = new StreamWriter(zip.CreateEntry(BackupOriginFile).Open());
+        origin.Write(dataFolder);
+    }
+
+    internal static void Import(string zipPath, string dataFolder)
+    {
+        using (var zip = ZipFile.OpenRead(zipPath))
+        {
+            if (zip.GetEntry("library.json") is null || zip.GetEntry(BackupOriginFile) is null)
+            {
+                throw new InvalidDataException("Die Datei ist keine Sicherung von YF AppCenter.");
+            }
+        }
+
+        // Prüft selbst, dass kein Eintrag aus dem Zielordner herausführt.
+        ZipFile.ExtractToDirectory(zipPath, dataFolder, overwriteFiles: true);
+        var originFile = Path.Combine(dataFolder, BackupOriginFile);
+        var origin = File.ReadAllText(originFile);
+        File.Delete(originFile);
+        if (!string.Equals(origin, dataFolder, StringComparison.OrdinalIgnoreCase))
+        {
+            var libraryFile = Path.Combine(dataFolder, "library.json");
+            File.WriteAllText(libraryFile, File.ReadAllText(libraryFile).Replace(Escaped(origin), Escaped(dataFolder)));
+        }
+
+        static string Escaped(string folder) => JsonEncodedText.Encode(folder + Path.DirectorySeparatorChar).ToString();
+    }
+
     /// <summary>
     /// Ersetzt die erkannten Spiele durch das neue Suchergebnis. Eigene Einträge bleiben, Umbenennungen,
     /// Ausblenden usw. werden auf die neu erkannten Einträge übertragen, deinstallierte Spiele fallen weg.
@@ -298,10 +349,12 @@ public static class Library
         }
     }
 
+    /// <summary>Startet eine Datei, eine URI oder einen Befehl mit Argumenten ("C:\…\Programm.exe" --schalter).</summary>
     public static void Launch(string target)
     {
-        var workingDirectory = File.Exists(target) ? Path.GetDirectoryName(target) ?? "" : "";
-        Process.Start(new ProcessStartInfo(target) { UseShellExecute = true, WorkingDirectory = workingDirectory })?.Dispose();
+        var (file, arguments) = target.StartsWith('"') ? Uninstaller.SplitCommand(target) : (target, "");
+        var workingDirectory = File.Exists(file) ? Path.GetDirectoryName(file) ?? "" : "";
+        Process.Start(new ProcessStartInfo(file, arguments) { UseShellExecute = true, WorkingDirectory = workingDirectory })?.Dispose();
     }
 
     private static string? ResolveShortcutTarget(string shortcutPath)
@@ -461,6 +514,8 @@ public sealed class AppSettings
     private static readonly string SettingsFile = Path.Combine(Library.DataFolder, "settings.json");
 
     public bool StartFullscreen { get; set; }
+    /// <summary>Reihenfolge der Listenseiten: "name", "recent" oder "playtime".</summary>
+    public string Sort { get; set; } = "name";
     public bool FullscreenAtLogon { get; set; }
 
     public bool OpensFullscreen(bool atLogon) => StartFullscreen || (atLogon && FullscreenAtLogon);
@@ -505,6 +560,7 @@ public static class GameScanner
         {
             var epicAppNames = ReadEpicAppNames();
             var uninstallIcons = ReadUninstallIcons();
+            var battleNet = FindBattleNet();
             using var steamKey = Registry.CurrentUser.OpenSubKey(@"Software\Valve\Steam");
             var steamRoot = steamKey?.GetValue("SteamPath") as string;
             var entries = new List<LibraryEntry>();
@@ -531,8 +587,9 @@ public static class GameScanner
                     GameSource.Epic when epicAppNames.TryGetValue(game.ExternalGameId, out var appName) =>
                         $"com.epicgames.launcher://apps/{Uri.EscapeDataString(appName)}?action=launch&silent=true",
                     GameSource.Xbox => xboxTarget ?? executable,
-                    // GOG, Battle.net, EA: Spiel direkt starten; nötige Launcher starten die Spiele selbst.
-                    // ponytail: Battle.net/EA haben keine verlässliche Start-URI, Startziel notfalls im Kontextmenü ändern.
+                    // Die Spiel-ID ist die uid aus dem Blizzard-Deinstallationseintrag; Battle.net startet damit direkt.
+                    GameSource.BattleNet when battleNet is not null => BattleNetLaunch(battleNet, game.ExternalGameId),
+                    // GOG, EA und Co.: Spiel direkt starten; nötige Launcher (EA app, Riot Client) starten die Spiele selbst.
                     _ => executable
                 };
                 if (target is not null)
@@ -608,6 +665,14 @@ public static class GameScanner
             return null;
         }
     }
+
+    internal static string BattleNetLaunch(string battleNet, string uid) => $"\"{battleNet}\" --exec=\"launch_uid {uid}\"";
+
+    /// <summary>Battle.net.exe aus dem Deinstallationseintrag des Launchers (uid=battle.net).</summary>
+    private static string? FindBattleNet() => ReadUninstallEntries()
+        .Where(entry => entry.Command?.Contains("--uid=battle.net", StringComparison.OrdinalIgnoreCase) == true)
+        .Select(entry => Path.Combine(entry.Location, "Battle.net.exe"))
+        .FirstOrDefault(File.Exists);
 
     /// <summary>Installationsordner → Icon-Datei aus den Windows-Deinstallationseinträgen.</summary>
     private static Dictionary<string, string> ReadUninstallIcons()
@@ -719,7 +784,8 @@ public static class PlaytimeReader
     /// "Steam:123" → Spielzeit, gezählt wie in YFTimeTracker: Basis-Spielzeit plus Sitzungen, laufende bis jetzt.
     /// Beide Programme erkennen Spiele mit demselben Code, daher passen die Kennungen zusammen.
     /// </summary>
-    public static Dictionary<string, TimeSpan> Read(string databasePath, DateTimeOffset now)
+    /// <param name="since">Nur Spielzeit ab diesem Zeitpunkt zählen (etwa diese Woche), ohne Basis-Spielzeit.</param>
+    public static Dictionary<string, TimeSpan> Read(string databasePath, DateTimeOffset now, DateTimeOffset? since = null)
     {
         var playtime = new Dictionary<string, TimeSpan>();
         if (!File.Exists(databasePath))
@@ -735,14 +801,21 @@ public static class PlaytimeReader
         connection.Open();
         using var command = connection.CreateCommand();
         // Zeitpunkte stehen dort als UTC-Ticks; Sitzungen ohne gespeicherte Dauer laufen noch oder wurden nicht sauber beendet.
-        command.CommandText = """
-            SELECT g.Source, g.ExternalGameId, COALESCE(g.BaselinePlaytimeMinutes, 0) * 60 + COALESCE((
-                SELECT SUM(COALESCE(s.DurationSeconds, MAX(0, (COALESCE(s.EndedAtUtc, $now) - s.StartedAtUtc) / 10000000)))
+        // Für einen Zeitraum wird jede Sitzung auf [since, now] zugeschnitten.
+        var (baseline, seconds) = since is null
+            ? ("COALESCE(g.BaselinePlaytimeMinutes, 0) * 60",
+                "COALESCE(s.DurationSeconds, MAX(0, (COALESCE(s.EndedAtUtc, $now) - s.StartedAtUtc) / 10000000))")
+            : ("0",
+                "MAX(0, (MIN(COALESCE(s.EndedAtUtc, s.StartedAtUtc + s.DurationSeconds * 10000000, $now), $now) - MAX(s.StartedAtUtc, $since)) / 10000000)");
+        command.CommandText = $"""
+            SELECT g.Source, g.ExternalGameId, {baseline} + COALESCE((
+                SELECT SUM({seconds})
                 FROM GameSessions s WHERE s.GameId = g.Id), 0)
             FROM Games g
             WHERE g.ExternalGameId IS NOT NULL
             """;
         command.Parameters.AddWithValue("$now", now.UtcTicks);
+        command.Parameters.AddWithValue("$since", since?.UtcTicks ?? 0);
         using var reader = command.ExecuteReader();
         while (reader.Read())
         {
@@ -924,7 +997,11 @@ public static class StoreArt
     }
 
     // ponytail: Abgleich nur über den Namen. Erst ein genauer Treffer, sonst der beste Treffer, wenn ein Name wortweise
-    // mit dem anderen beginnt ("Overwatch" ↔ "Overwatch® 2"). Erwischt das ein falsches Spiel: eigenes Cover setzen.
+    // mit dem anderen beginnt ("Overwatch" ↔ "Overwatch® 2"), aber nicht bei Soundtrack, DLC und Co. des Spiels.
+    // Erwischt das ein falsches Spiel: eigenes Cover setzen.
+    private static readonly HashSet<string> NonGameWords =
+        ["soundtrack", "ost", "dlc", "demo", "playtest", "artbook", "server", "sdk", "editor", "upgrade", "pass", "pack"];
+
     internal static int? MatchAppId(string name, IReadOnlyList<(string Name, int Id)> results)
     {
         var words = Words(name);
@@ -940,7 +1017,8 @@ public static class StoreArt
 
         var best = Words(results[0].Name);
         var (shorter, longer) = best.Length < words.Length ? (best, words) : (words, best);
-        return shorter.Length > 0 && longer.Take(shorter.Length).SequenceEqual(shorter) ? results[0].Id : null;
+        return shorter.Length > 0 && longer.Take(shorter.Length).SequenceEqual(shorter)
+            && !best.Skip(shorter.Length).Any(NonGameWords.Contains) ? results[0].Id : null;
 
         static string[] Words(string text) =>
             Regex.Split(text.ToLowerInvariant(), @"[^\p{L}\p{Nd}]+").Where(word => word.Length > 0).ToArray();

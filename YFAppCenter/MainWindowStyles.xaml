@@ -1,0 +1,554 @@
+﻿<!-- Gemeinsame Styles, Pinsel und Animationen des Hauptfensters. -->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <CubicEase x:Key="EaseOut" EasingMode="EaseOut" />
+    <SineEase x:Key="Drift" EasingMode="EaseInOut" />
+
+    <!-- Sternenstaub als gekachelte Zeichnung: einmal gerastert (Cache), danach verschiebt die Grafikkarte nur noch die Fläche.
+         Kurze Linien mit runden Enden zeichnen Punkte; so bleibt es ein Pfad statt Dutzender Ellipsen. -->
+    <Geometry x:Key="DustPoints">M23,41h.01 M97,12h.01 M164,73h.01 M241,28h.01 M318,59h.01 M402,17h.01 M489,66h.01 M58,129h.01 M131,168h.01 M212,121h.01 M289,177h.01 M371,134h.01 M447,189h.01 M34,233h.01 M109,271h.01 M187,226h.01 M263,289h.01 M342,241h.01 M428,276h.01 M503,232h.01 M72,347h.01 M149,391h.01 M226,338h.01 M304,402h.01 M385,353h.01 M469,411h.01 M18,447h.01 M118,489h.01 M203,452h.01 M281,498h.01 M358,461h.01 M441,492h.01</Geometry>
+    <Geometry x:Key="VioletMotes">M62,88h.01 M247,41h.01 M468,132h.01 M633,67h.01 M141,302h.01 M392,268h.01 M588,351h.01 M37,486h.01 M276,517h.01 M521,589h.01 M668,474h.01</Geometry>
+    <Geometry x:Key="PinkMotes">M173,171h.01 M351,109h.01 M547,218h.01 M89,397h.01 M312,411h.01 M449,492h.01 M198,634h.01 M602,651h.01</Geometry>
+    <DrawingBrush x:Key="DustFar" TileMode="Tile" Stretch="None" Viewport="0,0,520,520" ViewportUnits="Absolute"
+                  Viewbox="0,0,520,520" ViewboxUnits="Absolute" RenderOptions.CachingHint="Cache">
+        <DrawingBrush.Drawing>
+            <GeometryDrawing Geometry="{StaticResource DustPoints}">
+                <GeometryDrawing.Pen>
+                    <Pen Brush="#CCFFFFFF" Thickness="1.5" StartLineCap="Round" EndLineCap="Round" />
+                </GeometryDrawing.Pen>
+            </GeometryDrawing>
+        </DrawingBrush.Drawing>
+    </DrawingBrush>
+    <DrawingBrush x:Key="DustNear" TileMode="Tile" Stretch="None" Viewport="0,0,700,700" ViewportUnits="Absolute"
+                  Viewbox="0,0,700,700" ViewboxUnits="Absolute" RenderOptions.CachingHint="Cache">
+        <DrawingBrush.Drawing>
+            <DrawingGroup>
+                <GeometryDrawing Geometry="{StaticResource VioletMotes}">
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="#2EA78BFA" Thickness="13" StartLineCap="Round" EndLineCap="Round" />
+                    </GeometryDrawing.Pen>
+                </GeometryDrawing>
+                <GeometryDrawing Geometry="{StaticResource VioletMotes}">
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="#F2DDD6FE" Thickness="2.6" StartLineCap="Round" EndLineCap="Round" />
+                    </GeometryDrawing.Pen>
+                </GeometryDrawing>
+                <GeometryDrawing Geometry="{StaticResource PinkMotes}">
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="#2EF472B6" Thickness="11" StartLineCap="Round" EndLineCap="Round" />
+                    </GeometryDrawing.Pen>
+                </GeometryDrawing>
+                <GeometryDrawing Geometry="{StaticResource PinkMotes}">
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="#F2FBCFE8" Thickness="2.2" StartLineCap="Round" EndLineCap="Round" />
+                    </GeometryDrawing.Pen>
+                </GeometryDrawing>
+            </DrawingGroup>
+        </DrawingBrush.Drawing>
+    </DrawingBrush>
+
+    <!-- Alles Dauerhafte in einem Storyboard: MainWindow hält es an, sobald das Fenster nicht vorne ist (etwa beim Spielen).
+         RunningPulse ist der RunningBrush: ein Puls für alle „Läuft“-Punkte statt einer Animation pro Kachel. -->
+    <Storyboard x:Key="AmbientLoop" Timeline.DesiredFrameRate="30">
+        <DoubleAnimation Storyboard.TargetName="AuroraA" Storyboard.TargetProperty="X" From="-0.18" To="0.28" Duration="0:0:37" AutoReverse="True" RepeatBehavior="Forever" EasingFunction="{StaticResource Drift}" />
+        <DoubleAnimation Storyboard.TargetName="AuroraA" Storyboard.TargetProperty="Y" From="-0.12" To="0.3" Duration="0:0:29" AutoReverse="True" RepeatBehavior="Forever" EasingFunction="{StaticResource Drift}" />
+        <DoubleAnimation Storyboard.TargetName="AuroraB" Storyboard.TargetProperty="X" From="0.22" To="-0.3" Duration="0:0:43" AutoReverse="True" RepeatBehavior="Forever" EasingFunction="{StaticResource Drift}" />
+        <DoubleAnimation Storyboard.TargetName="AuroraB" Storyboard.TargetProperty="Y" From="0.16" To="-0.24" Duration="0:0:33" AutoReverse="True" RepeatBehavior="Forever" EasingFunction="{StaticResource Drift}" />
+        <DoubleAnimation Storyboard.TargetName="AuroraC" Storyboard.TargetProperty="X" From="-0.24" To="0.2" Duration="0:0:53" AutoReverse="True" RepeatBehavior="Forever" EasingFunction="{StaticResource Drift}" />
+        <DoubleAnimation Storyboard.TargetName="AuroraC" Storyboard.TargetProperty="Y" From="0.2" To="-0.2" Duration="0:0:41" AutoReverse="True" RepeatBehavior="Forever" EasingFunction="{StaticResource Drift}" />
+        <DoubleAnimation Storyboard.TargetName="AmbientZoom" Storyboard.TargetProperty="ScaleX" From="1.18" To="1.36" Duration="0:0:31" AutoReverse="True" RepeatBehavior="Forever" EasingFunction="{StaticResource Drift}" />
+        <DoubleAnimation Storyboard.TargetName="AmbientZoom" Storyboard.TargetProperty="ScaleY" From="1.18" To="1.36" Duration="0:0:31" AutoReverse="True" RepeatBehavior="Forever" EasingFunction="{StaticResource Drift}" />
+        <DoubleAnimation Storyboard.TargetName="AmbientTurn" Storyboard.TargetProperty="Angle" From="-5" To="5" Duration="0:0:47" AutoReverse="True" RepeatBehavior="Forever" EasingFunction="{StaticResource Drift}" />
+        <DoubleAnimation Storyboard.TargetName="DustFarShift" Storyboard.TargetProperty="Y" From="0" To="-520" Duration="0:1:40" RepeatBehavior="Forever" />
+        <DoubleAnimation Storyboard.TargetName="DustNearShift" Storyboard.TargetProperty="Y" From="0" To="-700" Duration="0:1:10" RepeatBehavior="Forever" />
+        <DoubleAnimation Storyboard.TargetName="DustFarLayer" Storyboard.TargetProperty="Opacity" From="0.14" To="0.5" Duration="0:0:5" AutoReverse="True" RepeatBehavior="Forever" EasingFunction="{StaticResource Drift}" />
+        <DoubleAnimation Storyboard.TargetName="DustNearLayer" Storyboard.TargetProperty="Opacity" From="0.3" To="0.8" Duration="0:0:7" AutoReverse="True" RepeatBehavior="Forever" EasingFunction="{StaticResource Drift}" />
+        <DoubleAnimation Storyboard.TargetName="HeroZoom" Storyboard.TargetProperty="ScaleX" From="1.06" To="1.15" Duration="0:0:26" AutoReverse="True" RepeatBehavior="Forever" EasingFunction="{StaticResource Drift}" />
+        <DoubleAnimation Storyboard.TargetName="HeroZoom" Storyboard.TargetProperty="ScaleY" From="1.06" To="1.15" Duration="0:0:26" AutoReverse="True" RepeatBehavior="Forever" EasingFunction="{StaticResource Drift}" />
+        <DoubleAnimation Storyboard.TargetName="HeroDustShift" Storyboard.TargetProperty="Y" From="0" To="-700" Duration="0:0:45" RepeatBehavior="Forever" />
+        <DoubleAnimation Storyboard.TargetName="HeroBeamShift" Storyboard.TargetProperty="X" From="-1.3" To="2.1" Duration="0:0:11" RepeatBehavior="Forever" />
+        <DoubleAnimation Storyboard.TargetName="RunningPulse" Storyboard.TargetProperty="Opacity" From="1" To="0.35" Duration="0:0:1" AutoReverse="True" RepeatBehavior="Forever" EasingFunction="{StaticResource Drift}" />
+    </Storyboard>
+
+    <!-- Startsequenz nach einem Klick auf „Spielen“ (siehe PlayLaunchSplashAsync). -->
+    <Storyboard x:Key="LaunchSplash">
+        <DoubleAnimation Storyboard.TargetName="LaunchOverlay" Storyboard.TargetProperty="Opacity" From="0" To="1" Duration="0:0:0.16" />
+        <DoubleAnimation Storyboard.TargetName="LaunchFlash" Storyboard.TargetProperty="Opacity" From="0.4" To="0" Duration="0:0:0.45" />
+        <DoubleAnimation Storyboard.TargetName="LaunchZoom" Storyboard.TargetProperty="ScaleX" From="1.22" To="1.04" Duration="0:0:1.2" EasingFunction="{StaticResource EaseOut}" />
+        <DoubleAnimation Storyboard.TargetName="LaunchZoom" Storyboard.TargetProperty="ScaleY" From="1.22" To="1.04" Duration="0:0:1.2" EasingFunction="{StaticResource EaseOut}" />
+        <DoubleAnimation Storyboard.TargetName="LaunchContent" Storyboard.TargetProperty="Opacity" From="0" To="1" Duration="0:0:0.3" />
+        <DoubleAnimation Storyboard.TargetName="LaunchContentScale" Storyboard.TargetProperty="ScaleX" From="0.8" To="1" Duration="0:0:0.5" EasingFunction="{StaticResource EaseOut}" />
+        <DoubleAnimation Storyboard.TargetName="LaunchContentScale" Storyboard.TargetProperty="ScaleY" From="0.8" To="1" Duration="0:0:0.5" EasingFunction="{StaticResource EaseOut}" />
+        <DoubleAnimation Storyboard.TargetName="LaunchRingA" Storyboard.TargetProperty="Opacity" BeginTime="0:0:0.1" From="0.9" To="0" Duration="0:0:0.9" />
+        <DoubleAnimation Storyboard.TargetName="LaunchRingAScale" Storyboard.TargetProperty="ScaleX" BeginTime="0:0:0.1" From="0.5" To="3.4" Duration="0:0:0.9" EasingFunction="{StaticResource EaseOut}" />
+        <DoubleAnimation Storyboard.TargetName="LaunchRingAScale" Storyboard.TargetProperty="ScaleY" BeginTime="0:0:0.1" From="0.5" To="3.4" Duration="0:0:0.9" EasingFunction="{StaticResource EaseOut}" />
+        <DoubleAnimation Storyboard.TargetName="LaunchRingB" Storyboard.TargetProperty="Opacity" BeginTime="0:0:0.35" From="0.9" To="0" Duration="0:0:0.85" />
+        <DoubleAnimation Storyboard.TargetName="LaunchRingBScale" Storyboard.TargetProperty="ScaleX" BeginTime="0:0:0.35" From="0.5" To="3.4" Duration="0:0:0.85" EasingFunction="{StaticResource EaseOut}" />
+        <DoubleAnimation Storyboard.TargetName="LaunchRingBScale" Storyboard.TargetProperty="ScaleY" BeginTime="0:0:0.35" From="0.5" To="3.4" Duration="0:0:0.85" EasingFunction="{StaticResource EaseOut}" />
+    </Storyboard>
+
+    <!-- Hauptaktion: Lichtstreif läuft einmal durch, der Schein wird größer. -->
+    <Storyboard x:Key="PrimaryGlowIn">
+        <DoubleAnimation Storyboard.TargetName="SweepShift" Storyboard.TargetProperty="X" From="-1.3" To="1.3" Duration="0:0:0.65" EasingFunction="{StaticResource EaseOut}" />
+        <DoubleAnimation Storyboard.TargetName="BgGlow" Storyboard.TargetProperty="BlurRadius" To="46" Duration="0:0:0.25" />
+        <DoubleAnimation Storyboard.TargetName="BgGlow" Storyboard.TargetProperty="Opacity" To="0.95" Duration="0:0:0.25" />
+    </Storyboard>
+    <Storyboard x:Key="PrimaryGlowOut">
+        <DoubleAnimation Storyboard.TargetName="BgGlow" Storyboard.TargetProperty="BlurRadius" To="26" Duration="0:0:0.25" />
+        <DoubleAnimation Storyboard.TargetName="BgGlow" Storyboard.TargetProperty="Opacity" To="0.5" Duration="0:0:0.25" />
+    </Storyboard>
+
+
+    <!-- Logo als Vektor, damit es in jeder Größe scharf bleibt. -->
+    <DrawingImage x:Key="Logo">
+        <DrawingImage.Drawing>
+            <DrawingGroup>
+                <GeometryDrawing>
+                    <GeometryDrawing.Geometry>
+                        <RectangleGeometry Rect="0,0,256,256" RadiusX="58" RadiusY="58" />
+                    </GeometryDrawing.Geometry>
+                    <GeometryDrawing.Brush>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                            <GradientStop Color="#2563EB" Offset="0" />
+                            <GradientStop Color="#7C3AED" Offset="0.55" />
+                            <GradientStop Color="#DB2777" Offset="1" />
+                        </LinearGradientBrush>
+                    </GeometryDrawing.Brush>
+                </GeometryDrawing>
+                <GeometryDrawing>
+                    <GeometryDrawing.Geometry>
+                        <RectangleGeometry Rect="0,0,256,256" RadiusX="58" RadiusY="58" />
+                    </GeometryDrawing.Geometry>
+                    <GeometryDrawing.Brush>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                            <GradientStop Color="#40FFFFFF" Offset="0" />
+                            <GradientStop Color="#00FFFFFF" Offset="0.6" />
+                        </LinearGradientBrush>
+                    </GeometryDrawing.Brush>
+                </GeometryDrawing>
+                <GeometryDrawing Brush="#2D1E1B4B">
+                    <GeometryDrawing.Geometry>
+                        <GeometryGroup>
+                            <RectangleGeometry Rect="52,57,66,66" RadiusX="17" RadiusY="17" />
+                            <RectangleGeometry Rect="52,143,66,66" RadiusX="17" RadiusY="17" />
+                            <RectangleGeometry Rect="138,143,66,66" RadiusX="17" RadiusY="17" />
+                            <EllipseGeometry Center="171,90" RadiusX="33" RadiusY="33" />
+                        </GeometryGroup>
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+                <GeometryDrawing Brush="#FFFFFFFF">
+                    <GeometryDrawing.Geometry>
+                        <GeometryGroup>
+                            <RectangleGeometry Rect="52,52,66,66" RadiusX="17" RadiusY="17" />
+                            <EllipseGeometry Center="171,85" RadiusX="33" RadiusY="33" />
+                        </GeometryGroup>
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+                <GeometryDrawing Brush="#D7FFFFFF">
+                    <GeometryDrawing.Geometry>
+                        <RectangleGeometry Rect="52,138,66,66" RadiusX="17" RadiusY="17" />
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+                <GeometryDrawing Brush="#AFFFFFFF">
+                    <GeometryDrawing.Geometry>
+                        <RectangleGeometry Rect="138,138,66,66" RadiusX="17" RadiusY="17" />
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+                <GeometryDrawing Geometry="M162,70 L162,100 L187,85 Z">
+                    <GeometryDrawing.Brush>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                            <GradientStop Color="#6D28D9" Offset="0" />
+                            <GradientStop Color="#DB2777" Offset="1" />
+                        </LinearGradientBrush>
+                    </GeometryDrawing.Brush>
+                    <GeometryDrawing.Pen>
+                        <Pen Thickness="6" LineJoin="Round">
+                            <Pen.Brush>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                    <GradientStop Color="#6D28D9" Offset="0" />
+                                    <GradientStop Color="#DB2777" Offset="1" />
+                                </LinearGradientBrush>
+                            </Pen.Brush>
+                        </Pen>
+                    </GeometryDrawing.Pen>
+                </GeometryDrawing>
+            </DrawingGroup>
+        </DrawingImage.Drawing>
+    </DrawingImage>
+
+    <Style x:Key="Glyph" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="Segoe Fluent Icons" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <!-- Hauptaktion: Markenverlauf, beim Überfahren mit einer weißen Schicht aufgehellt. -->
+    <Style x:Key="PrimaryButton" TargetType="Button">
+        <Setter Property="Foreground" Value="White" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Padding" Value="18,9" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Grid>
+                        <Border x:Name="Bg" CornerRadius="12" Background="{StaticResource BrandBrush}">
+                            <Border.Effect>
+                                <DropShadowEffect x:Name="BgGlow" Color="#7C3AED" BlurRadius="26" ShadowDepth="6" Direction="270" Opacity="0.5" />
+                            </Border.Effect>
+                        </Border>
+                        <Border x:Name="Shine" CornerRadius="12" Background="White" Opacity="0" />
+                        <!-- Verlauf statt Zuschnitt: der Streif bleibt so von selbst in den runden Ecken. -->
+                        <Border CornerRadius="12" IsHitTestVisible="False">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0.6">
+                                    <LinearGradientBrush.RelativeTransform>
+                                        <TranslateTransform x:Name="SweepShift" X="-1.3" />
+                                    </LinearGradientBrush.RelativeTransform>
+                                    <GradientStop Color="#00FFFFFF" Offset="0.32" />
+                                    <GradientStop Color="#73FFFFFF" Offset="0.5" />
+                                    <GradientStop Color="#00FFFFFF" Offset="0.68" />
+                                </LinearGradientBrush>
+                            </Border.Background>
+                        </Border>
+                        <Border x:Name="Ring" CornerRadius="12" BorderThickness="1" BorderBrush="#33FFFFFF" />
+                        <ContentPresenter Margin="{TemplateBinding Padding}" VerticalAlignment="Center"
+                                          HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" />
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Shine" Property="Opacity" Value="0.12" />
+                            <Trigger.EnterActions>
+                                <BeginStoryboard Storyboard="{StaticResource PrimaryGlowIn}" />
+                            </Trigger.EnterActions>
+                            <Trigger.ExitActions>
+                                <BeginStoryboard Storyboard="{StaticResource PrimaryGlowOut}" />
+                            </Trigger.ExitActions>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Shine" Property="Opacity" Value="0" />
+                            <Setter TargetName="Bg" Property="Opacity" Value="0.8" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Ring" Property="BorderBrush" Value="White" />
+                            <Setter TargetName="Ring" Property="BorderThickness" Value="2" />
+                            <Trigger.EnterActions>
+                                <BeginStoryboard Storyboard="{StaticResource PrimaryGlowIn}" />
+                            </Trigger.EnterActions>
+                            <Trigger.ExitActions>
+                                <BeginStoryboard Storyboard="{StaticResource PrimaryGlowOut}" />
+                            </Trigger.ExitActions>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.4" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Nebenaktion: halbtransparente Fläche, passt auf jeden Hintergrund. -->
+    <Style x:Key="SecondaryButton" TargetType="Button">
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Setter Property="Padding" Value="14,8" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bg" CornerRadius="10" Background="{StaticResource GlassBrush}"
+                            BorderBrush="{StaticResource GlassStrokeBrush}" BorderThickness="1">
+                        <ContentPresenter Margin="{TemplateBinding Padding}" VerticalAlignment="Center"
+                                          HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bg" Property="Background" Value="{StaticResource GlassHoverBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Bg" Property="Background" Value="{StaticResource GlassBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Bg" Property="BorderBrush" Value="White" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.4" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Halbtransparenter Rundknopf auf Bildern (Banner). -->
+    <Style x:Key="GlassButton" TargetType="Button">
+        <Setter Property="Width" Value="48" />
+        <Setter Property="Height" Value="48" />
+        <Setter Property="Foreground" Value="White" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bg" CornerRadius="24" Background="#26FFFFFF" BorderBrush="#33FFFFFF" BorderThickness="1">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bg" Property="Background" Value="#40FFFFFF" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Bg" Property="Background" Value="#1AFFFFFF" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Bg" Property="BorderBrush" Value="White" />
+                            <Setter TargetName="Bg" Property="BorderThickness" Value="2" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Fensterknöpfe der eigenen Titelleiste; wie bei Windows nicht per Tab erreichbar. -->
+    <Style x:Key="CaptionButton" TargetType="Button">
+        <Setter Property="Width" Value="46" />
+        <Setter Property="Height" Value="48" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+        <Setter Property="WindowChrome.IsHitTestVisibleInChrome" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bg" Background="Transparent">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bg" Property="Background" Value="#14FFFFFF" />
+                            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Bg" Property="Background" Value="#0BFFFFFF" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="CloseButton" TargetType="Button" BasedOn="{StaticResource CaptionButton}">
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bg" Background="Transparent">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bg" Property="Background" Value="#C42B1C" />
+                            <Setter Property="Foreground" Value="White" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Bg" Property="Background" Value="#B3C42B1C" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="CaptionGlyph" TargetType="TextBlock" BasedOn="{StaticResource Glyph}">
+        <Setter Property="FontSize" Value="10" />
+    </Style>
+
+    <!-- Navigation links: gewählter Bereich als helle Glasfläche mit Akzentstrich, der Rest gedämpft. -->
+    <Style x:Key="NavItem" TargetType="RadioButton">
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Margin" Value="0,1" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RadioButton">
+                    <Grid>
+                        <Border x:Name="Wash" CornerRadius="10" Opacity="0" IsHitTestVisible="False">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                    <GradientStop Color="#667C3AED" Offset="0" />
+                                    <GradientStop Color="#007C3AED" Offset="0.85" />
+                                </LinearGradientBrush>
+                            </Border.Background>
+                        </Border>
+                        <Border x:Name="Bg" CornerRadius="10" Background="Transparent" Padding="12,9" BorderThickness="1.5" BorderBrush="Transparent">
+                            <ContentPresenter />
+                        </Border>
+                        <Border x:Name="Marker" Width="3" Height="18" CornerRadius="1.5" Margin="1,0,0,0" HorizontalAlignment="Left"
+                                Background="{StaticResource BrandBrush}" Visibility="Collapsed" RenderTransformOrigin="0.5,0.5">
+                            <Border.RenderTransform>
+                                <ScaleTransform x:Name="MarkerScale" />
+                            </Border.RenderTransform>
+                            <Border.Effect>
+                                <DropShadowEffect Color="#A78BFA" BlurRadius="12" ShadowDepth="0" Opacity="0.9" />
+                            </Border.Effect>
+                        </Border>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bg" Property="Background" Value="{StaticResource GlassBrush}" />
+                            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Bg" Property="Background" Value="{StaticResource GlassHoverBrush}" />
+                            <Setter TargetName="Marker" Property="Visibility" Value="Visible" />
+                            <Setter Property="Foreground" Value="White" />
+                            <Setter Property="FontWeight" Value="SemiBold" />
+                            <Trigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Wash" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.25" />
+                                        <DoubleAnimation Storyboard.TargetName="MarkerScale" Storyboard.TargetProperty="ScaleY" From="0" To="1" Duration="0:0:0.3">
+                                            <DoubleAnimation.EasingFunction>
+                                                <BackEase EasingMode="EaseOut" Amplitude="0.6" />
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.EnterActions>
+                            <Trigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Wash" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.2" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.ExitActions>
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Bg" Property="BorderBrush" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="NavGlyph" TargetType="TextBlock" BasedOn="{StaticResource Glyph}">
+        <Setter Property="FontSize" Value="16" />
+        <Setter Property="Margin" Value="0,0,14,0" />
+    </Style>
+
+    <!-- Erbt die Schriftfarbe, damit die Zahl auch auf der Verlaufsfläche lesbar bleibt. -->
+    <Style x:Key="NavCount" TargetType="TextBlock">
+        <Setter Property="DockPanel.Dock" Value="Right" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontWeight" Value="Normal" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Opacity" Value="0.7" />
+    </Style>
+
+    <Style x:Key="NavHeader" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="Margin" Value="13,22,0,8" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorTertiaryBrush}" />
+    </Style>
+
+    <!-- Rahmenloser Symbolknopf für die Leiste unten links. -->
+    <Style x:Key="IconButton" TargetType="Button">
+        <Setter Property="Width" Value="34" />
+        <Setter Property="Height" Value="34" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bg" CornerRadius="10" Background="Transparent" BorderThickness="1.5" BorderBrush="Transparent">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bg" Property="Background" Value="{StaticResource GlassHoverBrush}" />
+                            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Bg" Property="Background" Value="{StaticResource GlassBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Bg" Property="BorderBrush" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.4" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Kachel ohne eigenen Kartenrahmen: das Bild ist die Karte, Titel stehen darunter (wie in Spiele-Launchern). -->
+    <Style x:Key="TileButton" TargetType="Button">
+        <Setter Property="Width" Value="{DynamicResource TileWidth}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Setter Property="Margin" Value="0,0,20,26" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Grid x:Name="Root" Background="Transparent">
+                        <ContentPresenter />
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Root" Property="Opacity" Value="0.8" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Leuchtende Tastenkappe in der Controller-Hilfe. -->
+    <Style x:Key="PadKey" TargetType="Border">
+        <Setter Property="MinWidth" Value="22" />
+        <Setter Property="Height" Value="22" />
+        <Setter Property="CornerRadius" Value="11" />
+        <Setter Property="Padding" Value="6,0" />
+        <Setter Property="Margin" Value="0,0,8,0" />
+        <Setter Property="TextElement.FontWeight" Value="Bold" />
+        <Setter Property="TextElement.FontSize" Value="11" />
+        <Setter Property="TextElement.Foreground" Value="#0E0F14" />
+    </Style>
+
+    <DataTemplate x:Key="CategoryNavContent">
+        <DockPanel>
+            <TextBlock Style="{StaticResource NavGlyph}" Text="&#xE8B7;" />
+            <TextBlock Text="{Binding Count}" Style="{StaticResource NavCount}" />
+            <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+        </DockPanel>
+    </DataTemplate>
+
+    <!-- Kachel hebt sich bei Hover oder Fokus leicht an; Play-Knopf gleitet herein. -->
+    <Storyboard x:Key="TileRaise">
+        <DoubleAnimation Storyboard.TargetName="ArtScale" Storyboard.TargetProperty="ScaleX" To="1.045" Duration="0:0:0.2" EasingFunction="{StaticResource EaseOut}" />
+        <DoubleAnimation Storyboard.TargetName="ArtScale" Storyboard.TargetProperty="ScaleY" To="1.045" Duration="0:0:0.2" EasingFunction="{StaticResource EaseOut}" />
+        <DoubleAnimation Storyboard.TargetName="PlayBadge" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.16" />
+        <DoubleAnimation Storyboard.TargetName="PlayShift" Storyboard.TargetProperty="Y" To="0" Duration="0:0:0.2" EasingFunction="{StaticResource EaseOut}" />
+        <DoubleAnimation Storyboard.TargetName="Glow" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.25" />
+        <DoubleAnimation Storyboard.TargetName="ShineShift" Storyboard.TargetProperty="X" From="-1.3" To="1.3" Duration="0:0:0.75" EasingFunction="{StaticResource EaseOut}" />
+    </Storyboard>
+    <Storyboard x:Key="TileLower">
+        <DoubleAnimation Storyboard.TargetName="ArtScale" Storyboard.TargetProperty="ScaleX" To="1" Duration="0:0:0.22" EasingFunction="{StaticResource EaseOut}" />
+        <DoubleAnimation Storyboard.TargetName="ArtScale" Storyboard.TargetProperty="ScaleY" To="1" Duration="0:0:0.22" EasingFunction="{StaticResource EaseOut}" />
+        <DoubleAnimation Storyboard.TargetName="PlayBadge" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.16" />
+        <DoubleAnimation Storyboard.TargetName="PlayShift" Storyboard.TargetProperty="Y" To="6" Duration="0:0:0.2" />
+        <DoubleAnimation Storyboard.TargetName="Glow" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.25" />
+    </Storyboard>
+    <Storyboard x:Key="RingTurn">
+        <DoubleAnimation Storyboard.TargetName="RingSpin" Storyboard.TargetProperty="Angle" From="0" To="360" Duration="0:0:2.4" RepeatBehavior="Forever" />
+    </Storyboard>
+</ResourceDictionary>
