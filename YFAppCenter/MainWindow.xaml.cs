@@ -253,7 +253,8 @@ public partial class MainWindow : Window
         }
     }
 
-    public sealed record Section(string Title, IReadOnlyList<LibraryEntry> Items)
+    /// <param name="Times">Spielzeit im Zeitraum des Bereichs (Seite „Spielzeit“); dann zeigen die Kacheln diese statt der Gesamtzeit.</param>
+    public sealed record Section(string Title, IReadOnlyList<LibraryEntry> Items, IReadOnlyDictionary<string, TimeSpan>? Times = null)
     {
         // Name des Bereichs für Bedienungshilfen wie die Sprachausgabe.
         public override string ToString() => Title;
@@ -383,7 +384,7 @@ public partial class MainWindow : Window
         {
             var played = matches.Where(entry => times.ContainsKey(entry.Id)).OrderByDescending(entry => times[entry.Id]).ToList();
             var total = played.Aggregate(TimeSpan.Zero, (sum, entry) => sum + times[entry.Id]);
-            return new($"{title}  ·  {LibraryEntry.FormatPlaytime(total)}", played);
+            return new($"{title}  ·  {LibraryEntry.FormatPlaytime(total)}", played, times);
         }
         sections.RemoveAll(section => section.Items.Count == 0);
         visible = sections.SelectMany(section => section.Items).ToList();
@@ -937,4 +938,19 @@ public partial class MainWindow : Window
             AddFiles(paths);
         }
     }
+}
+
+/// <summary>
+/// Untertitel einer Kachel: mit der Spielzeit des Bereichs, falls er eine hat (Seite „Spielzeit“), sonst der normale.
+/// Werte: Eintrag, sein Untertitel (nur damit die Anzeige Änderungen folgt), Zeiten des Bereichs.
+/// </summary>
+public sealed class PeriodSubtitleConverter : System.Windows.Data.IMultiValueConverter
+{
+    public object? Convert(object?[] values, Type targetType, object? parameter, System.Globalization.CultureInfo culture) =>
+        values is [LibraryEntry entry, _, IReadOnlyDictionary<string, TimeSpan> times, ..] && times.TryGetValue(entry.Id, out var time)
+            ? $"{entry.SourceName} · {LibraryEntry.FormatPlaytime(time)}"
+            : values.ElementAtOrDefault(1) as string;
+
+    public object?[] ConvertBack(object? value, Type[] targetTypes, object? parameter, System.Globalization.CultureInfo culture) =>
+        throw new NotSupportedException();
 }

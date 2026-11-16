@@ -159,8 +159,15 @@ public sealed class LibraryEntry : INotifyPropertyChanged
 
 public static class Library
 {
+#if DEBUG
+    // Entwickler-Builds bekommen eine eigene Bibliothek, sonst überschreiben sie die der installierten App.
+    internal const string DataFolderName = "YFAppCenter.Debug";
+#else
+    internal const string DataFolderName = "YFAppCenter";
+#endif
+
     public static readonly string DataFolder = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "YFAppCenter");
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), DataFolderName);
 
     private static readonly string LibraryFile = Path.Combine(DataFolder, "library.json");
     private static readonly string ShortcutFolder = Path.Combine(DataFolder, "Shortcuts");
@@ -469,7 +476,8 @@ public static class Autostart
 {
     public const string MinimizedArgument = "--minimized";
     private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
-    private const string ValueName = "YFAppCenter";
+    // Im Entwickler-Build ein eigener Eintrag, damit er den Autostart der installierten App nicht umbiegt.
+    private const string ValueName = Library.DataFolderName;
 
     /// <summary>
     /// Velopacks Starter im Installationsordner (eine Ebene über "current"), wie ihn auch der Installer einträgt.

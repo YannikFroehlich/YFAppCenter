@@ -12,10 +12,14 @@ Ein Launcher für Windows 11, der installierte Spiele aller gängigen Launcher u
 - Startseite mit Banner, „Läuft gerade“, „Zuletzt gestartet“, „Meistgespielt“ und Favoriten
 - Titelbilder, Banner und Schriftzüge aus dem Steam-Cache bzw. Steam-Shop, auch für Spiele anderer Launcher; eigene Cover-Bilder möglich
 - Eigene Kategorien, Favoriten, Umbenennen, Startziel ändern, Einträge ausblenden
+- Listen nach Name, zuletzt gestartet oder Spielzeit sortieren und nach Launcher filtern
+- „Was spiel ich?“: Knopf für ein zufälliges Spiel
+- Battle.net-Spiele starten direkt über Battle.net
 - Zeigt, was gerade läuft, und kann laufende Spiele beenden
 - Erkannte Spiele über ihren Launcher oder ihr Deinstallationsprogramm deinstallieren
-- Spielzeit aus YFTimeTracker, falls installiert (nur lesend)
-- Bedienung per Xbox-Controller und Tastatur (Suche, Enter startet den ersten Treffer)
+- Spielzeit aus YFTimeTracker, falls installiert (nur lesend), mit eigener Seite für diese Woche, diesen Monat und insgesamt
+- Bibliothek mit Favoriten, Kategorien, eigenen Einträgen und Covern als .zip sichern und auf einem anderen PC wiederherstellen
+- Bedienung per Xbox-Controller und Tastatur (Suche, Enter startet den ersten Treffer, LB/RB wechselt den Bereich, kurzes Vibrieren beim Spielstart)
 - Vollbild per F11 oder Knopf; optional direkt im Vollbild starten, auch beim Windows-Start
 - Infobereich-Symbol, optional mit Windows starten
 - Automatische Updates über die GitHub-Releases

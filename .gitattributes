@@ -1,0 +1,6 @@
+# Einheitlich LF in Repository und Arbeitskopie, unabhängig von core.autocrlf; Visual Studio und .NET kommen damit klar.
+* text=auto eol=lf
+
+*.ico binary
+*.png binary
+*.jpg binary
